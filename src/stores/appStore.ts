@@ -30,6 +30,13 @@ const STORAGE_KEY_ADD_PLOTS = 'tallypad_add_plots';
 const STORAGE_KEY_ADD_VISITS = 'tallypad_add_visits';
 const STORAGE_KEY_PLOT_SERVICE_URL = 'tallypad_plot_service_url';
 
+const getStoredExpiry = (): number | null => {
+  const item = localStorage.getItem(STORAGE_KEY_EXPIRY);
+  if (!item || item === 'null' || item === 'undefined') return null;
+  const num = Number(item);
+  return isNaN(num) ? null : num;
+};
+
 const state = ref<AppState>({
   isMobile: true,
   currentView: 'plots',
@@ -45,7 +52,7 @@ const state = ref<AppState>({
   userName: localStorage.getItem(STORAGE_KEY_USER) || '',
   esriToken: localStorage.getItem(STORAGE_KEY_TOKEN),
   esriRefreshToken: localStorage.getItem(STORAGE_KEY_REFRESH_TOKEN),
-  tokenExpiration: Number(localStorage.getItem(STORAGE_KEY_EXPIRY)) || null,
+  tokenExpiration: getStoredExpiry(),
   plotServiceUrl: localStorage.getItem(STORAGE_KEY_PLOT_SERVICE_URL) || import.meta.env.VITE_PLOT_SERVICE_URL,
   hasSyncErrors: false,
 });
@@ -119,9 +126,14 @@ export const useAppStore = () => {
 
   const checkDeviceType = () => {
     if (typeof window === "undefined") {
+      console.log('checkDeviceType: No window object')
       state.value.isMobile = false;
+      
     } else {
       const ua = window.navigator.userAgent;
+
+      console.log('checkDeviceType: User Agent:', ua);
+      console.log('checkDeviceType: maxTouchPoints:', window.navigator.maxTouchPoints);
   
       // Tablets (like Samsung Tab Active) often omit "Mobi" from the User Agent.
       // We check for mobile platforms and touch support to classify them as "mobile" (field) devices.
@@ -181,8 +193,8 @@ export const useAppStore = () => {
     localStorage.removeItem(STORAGE_KEY_REFRESH_TOKEN);
   };
 
-  const refreshEsriToken = async () => {
-    if (!state.value.esriRefreshToken) return;
+  const refreshEsriToken = async (): Promise<boolean | 'PERMANENT_FAILURE'> => {
+    if (!state.value.esriRefreshToken) return false;
 
     try {
       const clientId = import.meta.env.VITE_ESRI_CLIENT_ID;
@@ -198,11 +210,24 @@ export const useAppStore = () => {
         body: params
       });
 
-      const data = await response.json();
+      const data = await response.json() as { 
+        access_token?: string; 
+        expires_in?: number; 
+        username?: string; 
+        refresh_token?: string; 
+        error?: { code?: number; message?: string } 
+      };
+
       if (data.access_token) {
-        const expiration = Date.now() + (data.expires_in * 1000);
+        const expiration = Date.now() + (data.expires_in! * 1000);
         setEsriAuth(data.access_token, data.username || state.value.userName, expiration, data.refresh_token || state.value.esriRefreshToken);
         return true;
+      }
+
+      if (data.error) {
+        console.error('ESRI token refresh error:', data.error.code, data.error.message);
+        // Standard ESRI error codes for expired/invalid token is 400 or message contents
+        return 'PERMANENT_FAILURE';
       }
     } catch (error) {
       console.error('Failed to refresh token:', error);

@@ -1,7 +1,9 @@
 <template>
   <div id="app-inner" :class="{ 'dark-mode': store.isDarkMode.value }">
     <header class="p-2 border-b-2 flex items-center" :style="{ borderColor: 'var(--border-color)', backgroundColor: 'var(--header-bg)' }">
-      <div @click="store.goToPreviousView()" class="m-0 pr-4 cursor-pointer text-xl">◀</div>
+      <div @click="store.goToPreviousView()" class="m-0 pr-4 cursor-pointer text-xl">
+        <icon-fa-arrow-left />
+      </div>
       <div class="flex flex-col items-center">
         <h1 class="text-md font-bold">Setup</h1>
       </div>
@@ -308,6 +310,11 @@
   const REDIRECT_URI = window.location.origin + window.location.pathname.replace(/\/$/, '') + '/';
 
   const login = () => {
+    // Initiates user login with ESRI
+    // User is redirecte to the ESRI login page
+    // After the login completes the user is redirected back to the app
+    // The second step in the process is hand in the onMounted routine in App.vue 
+
     // Generate a cryptographically strong verifier for PKCE.
     // RFC 7636 requires a minimum length of 43 characters. 
     // Two UUIDs combined provide ~72 characters, well within the 43-128 range.
