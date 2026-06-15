@@ -48,14 +48,16 @@
             <span class="menu-icon">⚠️</span>
           </button>
           <button @click="store.toggleDarkMode()" class="menu-item text-xl">
-            <span class="menu-icon">{{ store.isDarkMode.value ? '☀️' : '🌙' }}</span>
+            <icon-fa-sun-o v-if="store.isDarkMode.value" class="menu-icon" />
+            <icon-fa-moon-o v-else class="menu-icon" />
           </button>
           <button @click.stop="toggleMenu" class="p-2 rounded menu-item text-xl font-bold" :style="{ color: 'var(--text-primary)' }">
             ⁝
           </button>
           <div v-if="isMenuOpen" class="kebab-menu" @click.stop>
             <button @click="store.toggleDarkMode()" class="menu-item">
-              <span class="menu-icon">{{ store.isDarkMode.value ? '☀️' : '🌙' }}</span>
+              <icon-fa-sun-o v-if="store.isDarkMode.value" class="menu-icon" />
+              <icon-fa-moon-o v-else class="menu-icon" />
               <span>{{ store.isDarkMode.value ? 'Light mode' : 'Dark mode' }}</span>
             </button>
 

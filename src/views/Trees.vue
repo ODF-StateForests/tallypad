@@ -25,7 +25,9 @@
       </div>
     </div>
     <header class="p-2 border-b-2 flex items-center" :style="{ borderColor: 'var(--border-color)', backgroundColor: 'var(--header-bg)' }">
-      <div @click="store.goToPreviousView()" class="m-0 pr-4 cursor-pointer text-xl">◀</div>
+      <div @click="store.goToPreviousView()" class="m-0 pr-4 cursor-pointer text-xl">
+        <icon-fa-arrow-left />
+      </div>
       <div>
         <!-- <h1 class="text-xs uppercase opacity-70 font-bold">Forest Inventory</h1> -->
         <div class="text-md font-bold">
@@ -40,26 +42,31 @@
         </div>
       </div>
       <div class="relative ml-auto flex items-center gap-2">
-        <button v-if="store.isMobile.value" @click="requestWakeLock" class="menu-item text-xl">
-          <span class="menu-icon">{{ !isLocked ? '🔓' : '🔒' }}</span>
+        <button @click="store.toggleDarkMode()" class="menu-item text-xl">
+          <icon-fa-sun-o v-if="store.isDarkMode.value" class="menu-icon" />
+          <icon-fa-moon-o v-else class="menu-icon" />
         </button>
         <button @click="toggleFullscreen" class="menu-item text-xl">
-          <span class="menu-icon">{{ isFullscreen ? '🗕' : '🗖' }}</span>
+          <icon-fa-window-minimize v-if="isFullscreen" class="menu-icon"/>
+          <icon-fa-window-maximize v-else class="menu-icon"/>
         </button>
-        <button @click="store.toggleDarkMode()" class="menu-item text-xl">
-          <span class="menu-icon">{{ store.isDarkMode.value ? '☀️' : '🌙' }}</span>
+        <button v-if="store.isMobile.value" @click="requestWakeLock" class="menu-item text-xl">
+          <icon-fa-lock v-if="!isLocked" class="menu-icon"/>
+          <icon-fa-unlock v-else class="menu-icon"/>
         </button>
-        <button @click.stop="toggleMenu" class="p-1 rounded menu-item text-xl font-bold min-w-7" :style="{ color: 'var(--text-primary)' }">
-          ⁝
+        <button @click.stop="toggleMenu" class="p-1 rounded menu-icon text-xl font-bold min-w-7" :style="{ color: 'var(--text-primary)' }">
+          <icon-fa-ellipsis-v />
         </button>
 
         <div v-if="isMenuOpen" class="kebab-menu" @click.stop>
           <button @click="toggleFullscreen" class="menu-item">
-            <span class="menu-icon">⛶</span>
+            <icon-fa-window-minimize v-if="isFullscreen" class="menu-icon"/>
+            <icon-fa-window-maximize v-else class="menu-icon"/>
             <span>{{ isFullscreen ? 'Exit fullscreen' : 'Fullscreen' }}</span>
           </button>
           <button @click="store.toggleDarkMode()" class="menu-item">
-            <span class="menu-icon">{{ store.isDarkMode.value ? '☀️' : '🌙' }}</span>
+            <icon-fa-sun-o v-if="store.isDarkMode.value" class="menu-icon" />
+            <icon-fa-moon-o v-else class="menu-icon" />
             <span>{{ store.isDarkMode.value ? 'Light mode' : 'Dark mode' }}</span>
           </button>
         </div>
@@ -126,8 +133,8 @@
     <!-- Navigation bar -->
     <div class="p-2 flex justify-between items-center border-b-2" :style="{ borderColor: 'var(--border-color)', backgroundColor: 'var(--keypad-bg)' }">
       <div class="flex gap-2">
-        <button @click="addRow" class="nav-btn !text-green-600">＋</button>
-        <button @click="removeRow" class="nav-btn !text-red-600">－</button>
+        <button @click="addRow" class="nav-btn !text-green-600 !text-sm"><icon-fa-plus /></button>
+        <button @click="removeRow" class="nav-btn !text-red-600 !text-sm"><icon-fa-minus /></button>
       </div>
       <div v-if="store.isMobile.value" class="grid grid-cols-4 gap-0">
         <button @click="move('up')" class="nav-btn !border-0 !text-4xl" :style="{backgroundColor: 'var(--keypad-bg)'}">⬆️</button>
@@ -188,6 +195,9 @@
 </template>
 
 <script setup lang="ts">
+// import IconMaximize from 'virtual:icons/iconoir/maximize'
+// import IconMinimize from '~icons/iconoir/minimize'
+// import MdiStore24Hour from 'virtual:icons/mdi/store-24-hour'
 import { computed, onBeforeUnmount, onMounted, onUnmounted, ref } from 'vue';
 import { useAppStore } from '../stores/appStore';
 import { db, ITree, ITreeMeasurement } from '../db';
@@ -703,7 +713,7 @@ const addRow = async () => {
 
   rows.value.push(newRow);
   activeRow.value = rows.value.length - 1;
-  activeCol.value = 3; // Focus Tr
+  activeCol.value = 4; // Focus Tr
   captureSnapshot();
   cellNeedsOverwrite.value = true;
   scrollActiveIntoView();
@@ -722,7 +732,7 @@ const removeRow = async () => {
     }
 
     const rowIndex = activeRow.value + 1;
-    const message = `Delete row ${rowIndex}? This cannot be undone.`;
+    const message = `Delete tree ${rowToDelete['tree_num']}? This cannot be undone.`;
     if (!confirm(message)) return;
     rows.value.splice(activeRow.value, 1);
 
