@@ -209,7 +209,6 @@ function buildPlotGeometry(plot: IPlot): Record<string, unknown> | null {
 async function syncPlots(token: string): Promise<void> {
   await db.syncErrors.where('table_name').equals('plots').delete();
   const remote = await queryAll(LAYER.plot, token);
-  // console.log('plots', remote.length)
 
   const remoteByGuid = new Map<string, EsriFeature>();
   for (const f of remote) {
@@ -220,13 +219,18 @@ async function syncPlots(token: string): Promise<void> {
   const locals = await db.plots.toArray();
   const localByGuid = new Map(locals.map(p => [p.guid.toUpperCase(), p]));
 
-  // Ingest remote records that do not exist locally (local wins on conflict)
-  const toAdd: IPlot[] = [];
+  const toAddLocally: IPlot[] = [];
+  const toUpdateLocally: IPlot[] = [];
+  const adds: EsriFeature[] = [];
+  const updates: EsriFeature[] = [];
+
+  // Ingest remote records or apply remote updates locally
   for (const f of remote) {
     const g = (f.attributes['guid'] as string | undefined)?.toUpperCase();
-    if (!g || localByGuid.has(g)) continue;
+    if (!g) continue;
+
     const a = f.attributes;
-    toAdd.push({
+    const remotePlot: IPlot = {
       guid:               a['guid'] as string,
       plotid:             a['plotid'] as string,
       Shape:              f.geometry ?? null,
@@ -240,15 +244,25 @@ async function syncPlots(token: string): Promise<void> {
       created_date:       a['created_date'] as number | undefined,
       last_edited_user:   a['last_edited_user'] as string | undefined,
       last_edited_date:   a['last_edited_date'] as number | undefined,
-    });
+    };
+
+    const localPlot = localByGuid.get(g);
+    if (!localPlot) {
+      toAddLocally.push(remotePlot);
+    } else {
+      const localTime = localPlot.last_edited_date ?? 0;
+      const remoteTime = remotePlot.last_edited_date ?? 0;
+      if (remoteTime > localTime) {
+        toUpdateLocally.push(remotePlot);
+      }
+    }
   }
-  if (toAdd.length) await db.plots.bulkAdd(toAdd);
 
-  // Push all local records to the service
-  const adds:    EsriFeature[] = [];
-  const updates: EsriFeature[] = [];
-
+  // Push local records or local updates to remote
   for (const plot of locals) {
+    const g = plot.guid.toUpperCase();
+    const remoteFeature = remoteByGuid.get(g);
+
     const attrs = stripReadOnly({
       guid:              plot.guid,
       plotid:            plot.plotid,
@@ -263,16 +277,23 @@ async function syncPlots(token: string): Promise<void> {
       ? { attributes: attrs, geometry: geo }
       : { attributes: attrs };
 
-    const remoteFeature = remoteByGuid.get(plot.guid.toUpperCase());
-    if (remoteFeature) {
-      if (hasChanges(attrs, remoteFeature.attributes)) {
-        attrs['OBJECTID'] = remoteFeature.attributes['OBJECTID'];
-        updates.push(feature);
-      }
-    } else {
+    if (!remoteFeature) {
       adds.push(feature);
+    } else {
+      const localTime = plot.last_edited_date ?? 0;
+      const remoteTime = (remoteFeature.attributes['last_edited_date'] as number | undefined) ?? 0;
+
+      if (localTime >= remoteTime) {
+        if (hasChanges(attrs, remoteFeature.attributes)) {
+          attrs['OBJECTID'] = remoteFeature.attributes['OBJECTID'];
+          updates.push(feature);
+        }
+      }
     }
   }
+
+  if (toAddLocally.length) await db.plots.bulkAdd(toAddLocally);
+  if (toUpdateLocally.length) await db.plots.bulkPut(toUpdateLocally);
 
   const result = await applyEdits(LAYER.plot, adds, updates, token);
   await logApplyResults('plots', result, adds, updates);
@@ -294,12 +315,17 @@ async function syncGpsPoints(token: string): Promise<void> {
   const locals = await db.plotGpsPoints.toArray();
   const localByGuid = new Map(locals.map(l => [l.guid.toUpperCase(), l]));
 
-  const toAdd: IGpsPoint[] = [];
+  const toAddLocally: IGpsPoint[] = [];
+  const toUpdateLocally: IGpsPoint[] = [];
+  const adds:    EsriFeature[] = [];
+  const updates: EsriFeature[] = [];
+
   for (const f of remote) {
     const g = (f.attributes['guid'] as string | undefined)?.toUpperCase();
-    if (!g || localByGuid.has(g)) continue;
+    if (!g) continue;
+
     const a = f.attributes;
-    toAdd.push({
+    const remoteGps: IGpsPoint = {
       guid:       a['guid'] as string,
       plot_guid:  a['plot_guid'] as string,
       latitude:   a['latitude'] as number,
@@ -315,14 +341,28 @@ async function syncGpsPoints(token: string): Promise<void> {
       remarks:    a['remarks'] as string,
       OBJECTID:   a['OBJECTID'] as number | undefined,
       GlobalID:   a['GlobalID'] as string | undefined,
-    });
-  }
-  if (toAdd.length) await db.plotGpsPoints.bulkAdd(toAdd);
+      created_user:       a['created_user'] as string | undefined,
+      created_date:       a['created_date'] as number | undefined,
+      last_edited_user:   a['last_edited_user'] as string | undefined,
+      last_edited_date:   a['last_edited_date'] as number | undefined,
+    };
 
-  const adds:    EsriFeature[] = [];
-  const updates: EsriFeature[] = [];
+    const localGps = localByGuid.get(g);
+    if (!localGps) {
+      toAddLocally.push(remoteGps);
+    } else {
+      const localTime = localGps.last_edited_date ?? 0;
+      const remoteTime = remoteGps.last_edited_date ?? 0;
+      if (remoteTime > localTime) {
+        toUpdateLocally.push(remoteGps);
+      }
+    }
+  }
 
   for (const loc of locals) {
+    const g = loc.guid.toUpperCase();
+    const remoteFeature = remoteByGuid.get(g);
+
     const attrs = stripReadOnly({
       guid:       loc.guid,
       plot_guid:  loc.plot_guid,
@@ -344,16 +384,23 @@ async function syncGpsPoints(token: string): Promise<void> {
       geometry:   { x: loc.longitude, y: loc.latitude, spatialReference: SR_4326 },
     };
 
-    const remoteFeature = remoteByGuid.get(loc.guid.toUpperCase());
-    if (remoteFeature) {
-      if (hasChanges(attrs, remoteFeature.attributes)) {
-        attrs['OBJECTID'] = remoteFeature.attributes['OBJECTID'];
-        updates.push(feature);
-      }
-    } else {
+    if (!remoteFeature) {
       adds.push(feature);
+    } else {
+      const localTime = loc.last_edited_date ?? 0;
+      const remoteTime = (remoteFeature.attributes['last_edited_date'] as number | undefined) ?? 0;
+
+      if (localTime >= remoteTime) {
+        if (hasChanges(attrs, remoteFeature.attributes)) {
+          attrs['OBJECTID'] = remoteFeature.attributes['OBJECTID'];
+          updates.push(feature);
+        }
+      }
     }
   }
+
+  if (toAddLocally.length) await db.plotGpsPoints.bulkAdd(toAddLocally);
+  if (toUpdateLocally.length) await db.plotGpsPoints.bulkPut(toUpdateLocally);
 
   const result = await applyEdits(LAYER.gps_point, adds, updates, token);
   await logApplyResults('gps_points', result, adds, updates);
@@ -374,12 +421,17 @@ async function syncVisits(token: string): Promise<void> {
   const locals = await db.plotVisits.toArray();
   const localByGuid = new Map(locals.map(v => [v.guid.toUpperCase(), v]));
 
-  const toAdd: IPlotVisit[] = [];
+  const toAddLocally: IPlotVisit[] = [];
+  const toUpdateLocally: IPlotVisit[] = [];
+  const adds:    EsriFeature[] = [];
+  const updates: EsriFeature[] = [];
+
   for (const f of remote) {
     const g = (f.attributes['guid'] as string | undefined)?.toUpperCase();
-    if (!g || localByGuid.has(g)) continue;
+    if (!g) continue;
+
     const a = f.attributes;
-    toAdd.push({
+    const remoteVisit: IPlotVisit = {
       guid:             a['guid'] as string,
       plot_guid:        a['plot_guid'] as string,
       measurement_date: a['measurement_date'] as number,
@@ -393,14 +445,24 @@ async function syncVisits(token: string): Promise<void> {
       created_date:     a['created_date'] as number | undefined,
       last_edited_user: a['last_edited_user'] as string | undefined,
       last_edited_date: a['last_edited_date'] as number | undefined,
-    });
-  }
-  if (toAdd.length) await db.plotVisits.bulkAdd(toAdd);
+    };
 
-  const adds:    EsriFeature[] = [];
-  const updates: EsriFeature[] = [];
+    const localVisit = localByGuid.get(g);
+    if (!localVisit) {
+      toAddLocally.push(remoteVisit);
+    } else {
+      const localTime = localVisit.last_edited_date ?? 0;
+      const remoteTime = remoteVisit.last_edited_date ?? 0;
+      if (remoteTime > localTime) {
+        toUpdateLocally.push(remoteVisit);
+      }
+    }
+  }
 
   for (const visit of locals) {
+    const g = visit.guid.toUpperCase();
+    const remoteFeature = remoteByGuid.get(g);
+
     const attrs = stripReadOnly({
       guid:             visit.guid,
       plot_guid:        visit.plot_guid,
@@ -411,16 +473,23 @@ async function syncVisits(token: string): Promise<void> {
       remarks:          visit.remarks ?? null,
     });
 
-    const remoteFeature = remoteByGuid.get(visit.guid.toUpperCase());
-    if (remoteFeature) {
-      if (hasChanges(attrs, remoteFeature.attributes)) {
-        attrs['OBJECTID'] = remoteFeature.attributes['OBJECTID'];
-        updates.push({ attributes: attrs });
-      }
-    } else {
+    if (!remoteFeature) {
       adds.push({ attributes: attrs });
+    } else {
+      const localTime = visit.last_edited_date ?? 0;
+      const remoteTime = (remoteFeature.attributes['last_edited_date'] as number | undefined) ?? 0;
+
+      if (localTime >= remoteTime) {
+        if (hasChanges(attrs, remoteFeature.attributes)) {
+          attrs['OBJECTID'] = remoteFeature.attributes['OBJECTID'];
+          updates.push({ attributes: attrs });
+        }
+      }
     }
   }
+
+  if (toAddLocally.length) await db.plotVisits.bulkAdd(toAddLocally);
+  if (toUpdateLocally.length) await db.plotVisits.bulkPut(toUpdateLocally);
 
   const result = await applyEdits(LAYER.visit, adds, updates, token);
   await logApplyResults('visits', result, adds, updates);
@@ -432,7 +501,6 @@ async function syncTrees(token: string): Promise<void> {
   await db.syncErrors.where('table_name').equals('trees').delete();
   const remote = await queryAll(LAYER.tree, token);
 
-  // Service tree table now has a "guid" field -- key on it like every other table
   const remoteByGuid = new Map<string, EsriFeature>();
   for (const f of remote) {
     const g = f.attributes['guid'] as string | undefined;
@@ -442,12 +510,17 @@ async function syncTrees(token: string): Promise<void> {
   const locals = await db.plotTrees.toArray();
   const localByGuid = new Map(locals.map(t => [t.guid.toUpperCase(), t]));
 
-  const toAdd: ITree[] = [];
+  const toAddLocally: ITree[] = [];
+  const toUpdateLocally: ITree[] = [];
+  const adds:    EsriFeature[] = [];
+  const updates: EsriFeature[] = [];
+
   for (const f of remote) {
     const g = (f.attributes['guid'] as string | undefined)?.toUpperCase();
-    if (!g || localByGuid.has(g)) continue;
+    if (!g) continue;
+
     const a = f.attributes;
-    toAdd.push({
+    const remoteTree: ITree = {
       guid:             a['guid'] as string,
       plot_guid:        a['plot_guid'] as string,
       tree_num:         a['tree_num'] as number,
@@ -463,14 +536,24 @@ async function syncTrees(token: string): Promise<void> {
       created_date:     a['created_date'] as number | undefined,
       last_edited_user: a['last_edited_user'] as string | undefined,
       last_edited_date: a['last_edited_date'] as number | undefined,
-    });
-  }
-  if (toAdd.length) await db.plotTrees.bulkAdd(toAdd);
+    };
 
-  const adds:    EsriFeature[] = [];
-  const updates: EsriFeature[] = [];
+    const localTree = localByGuid.get(g);
+    if (!localTree) {
+      toAddLocally.push(remoteTree);
+    } else {
+      const localTime = localTree.last_edited_date ?? 0;
+      const remoteTime = remoteTree.last_edited_date ?? 0;
+      if (remoteTime > localTime) {
+        toUpdateLocally.push(remoteTree);
+      }
+    }
+  }
 
   for (const tree of locals) {
+    const g = tree.guid.toUpperCase();
+    const remoteFeature = remoteByGuid.get(g);
+
     const attrs = stripReadOnly({
       guid:      tree.guid,
       plot_guid: tree.plot_guid,
@@ -483,16 +566,23 @@ async function syncTrees(token: string): Promise<void> {
       remarks:   tree.remarks ?? null,
     });
 
-    const remoteFeature = remoteByGuid.get(tree.guid.toUpperCase());
-    if (remoteFeature) {
-      if (hasChanges(attrs, remoteFeature.attributes)) {
-        attrs['OBJECTID'] = remoteFeature.attributes['OBJECTID'];
-        updates.push({ attributes: attrs });
-      }
-    } else {
+    if (!remoteFeature) {
       adds.push({ attributes: attrs });
+    } else {
+      const localTime = tree.last_edited_date ?? 0;
+      const remoteTime = (remoteFeature.attributes['last_edited_date'] as number | undefined) ?? 0;
+
+      if (localTime >= remoteTime) {
+        if (hasChanges(attrs, remoteFeature.attributes)) {
+          attrs['OBJECTID'] = remoteFeature.attributes['OBJECTID'];
+          updates.push({ attributes: attrs });
+        }
+      }
     }
   }
+
+  if (toAddLocally.length) await db.plotTrees.bulkAdd(toAddLocally);
+  if (toUpdateLocally.length) await db.plotTrees.bulkPut(toUpdateLocally);
 
   const result = await applyEdits(LAYER.tree, adds, updates, token);
   await logApplyResults('trees', result, adds, updates);
@@ -513,19 +603,24 @@ async function syncMeasurements(token: string): Promise<void> {
   const locals = await db.treeMeasurements.toArray();
   const localByGuid = new Map(locals.map(m => [m.guid.toUpperCase(), m]));
 
-  const toAdd: ITreeMeasurement[] = [];
+  const toAddLocally: ITreeMeasurement[] = [];
+  const toUpdateLocally: ITreeMeasurement[] = [];
+  const adds:    EsriFeature[] = [];
+  const updates: EsriFeature[] = [];
+
   for (const f of remote) {
     const g = (f.attributes['guid'] as string | undefined)?.toUpperCase();
-    if (!g || localByGuid.has(g)) continue;
+    if (!g) continue;
+
     const a = f.attributes;
-    toAdd.push({
+    const remoteM: ITreeMeasurement = {
       guid:       a['guid'] as string,
       tree_guid:  a['tree_guid'] as string,
       visit_guid: a['visit_guid'] as string,
       gp:         a['gp'] as string,
       gt:         a['gt'] as number,
       dbh:        a['dbh'] as number,
-      s:          a['s'] as string,
+      s:          a['s'] as number,
       fc:         a['fc'] as number | undefined,
       ht:         a['ht'] as number | undefined,
       age:        a['age'] as number | undefined,
@@ -553,14 +648,25 @@ async function syncMeasurements(token: string): Promise<void> {
       created_date:     a['created_date'] as number | undefined,
       last_edited_user: a['last_edited_user'] as string | undefined,
       last_edited_date: a['last_edited_date'] as number | undefined,
-    });
-  }
-  if (toAdd.length) await db.treeMeasurements.bulkAdd(toAdd);
+    };
 
-  const adds:    EsriFeature[] = [];
-  const updates: EsriFeature[] = [];
+    const localM = localByGuid.get(g);
+    if (!localM) {
+      toAddLocally.push(remoteM);
+    } else {
+      const localTime = localM.last_edited_date ?? 0;
+      const remoteTime = remoteM.last_edited_date ?? 0;
+      if (remoteTime > localTime) {
+        console.log('Update local copy:', new Date(remoteTime).toISOString(), new Date(localTime).toISOString(), remoteM['dbh'], remoteM['remarks'])
+        toUpdateLocally.push(remoteM);
+      }
+    }
+  }
 
   for (const m of locals) {
+    const g = m.guid.toUpperCase();
+    const remoteFeature = remoteByGuid.get(g);
+
     const attrs = stripReadOnly({
       guid:       m.guid,
       tree_guid:  m.tree_guid,
@@ -592,19 +698,23 @@ async function syncMeasurements(token: string): Promise<void> {
       remarks:    m.remarks ?? null,
     });
 
-    const remoteFeature = remoteByGuid.get(m.guid.toUpperCase());
-    if (remoteFeature) {
-      if (hasChanges(attrs, remoteFeature.attributes)) {
-        attrs['OBJECTID'] = remoteFeature.attributes['OBJECTID'];
-        updates.push({ attributes: attrs });
-      }
-    } else {
+    if (!remoteFeature) {
       adds.push({ attributes: attrs });
+    } else {
+      const localTime = m.last_edited_date ?? 0;
+      const remoteTime = (remoteFeature.attributes['last_edited_date'] as number | undefined) ?? 0;
+
+      if (localTime >= remoteTime) {
+        if (hasChanges(attrs, remoteFeature.attributes)) {
+          attrs['OBJECTID'] = remoteFeature.attributes['OBJECTID'];
+          updates.push({ attributes: attrs });
+        }
+      }
     }
   }
 
-  // console.log('measurements - Adds:', adds.length, 'Updates:', updates.length);
-  // console.log(adds);
+  if (toAddLocally.length) await db.treeMeasurements.bulkAdd(toAddLocally);
+  if (toUpdateLocally.length) await db.treeMeasurements.bulkPut(toUpdateLocally);
 
   const result = await applyEdits(LAYER.measurement, adds, updates, token);
   await logApplyResults('measurements', result, adds, updates);
@@ -625,12 +735,17 @@ async function syncLookups(token: string): Promise<void> {
   const locals = await db.lookups.toArray();
   const localByGuid = new Map(locals.map(l => [l.guid.toUpperCase(), l]));
 
-  const toAdd: ILookups[] = [];
+  const toAddLocally: ILookups[] = [];
+  const toUpdateLocally: ILookups[] = [];
+  const adds:    EsriFeature[] = [];
+  const updates: EsriFeature[] = [];
+
   for (const f of remote) {
     const g = (f.attributes['guid'] as string | undefined)?.toUpperCase();
-    if (!g || localByGuid.has(g)) continue;
+    if (!g) continue;
+
     const a = f.attributes;
-    toAdd.push({
+    const remoteL: ILookups = {
       guid:        a['guid'] as string,
       feature:     a['feature'] as string,
       code:        a['code'] as string,
@@ -638,15 +753,28 @@ async function syncLookups(token: string): Promise<void> {
       description: a['description'] as string,
       OBJECTID:    a['OBJECTID'] as number | undefined,
       GlobalID:    a['GlobalID'] as string | undefined,
-    });
-  }
-  if (toAdd.length) await db.lookups.bulkAdd(toAdd);
+      created_user:     a['created_user'] as string | undefined,
+      created_date:     a['created_date'] as number | undefined,
+      last_edited_user: a['last_edited_user'] as string | undefined,
+      last_edited_date: a['last_edited_date'] as number | undefined,
+    };
 
-  // Push any locally-created lookups back to the service
-  const adds:    EsriFeature[] = [];
-  const updates: EsriFeature[] = [];
+    const localL = localByGuid.get(g);
+    if (!localL) {
+      toAddLocally.push(remoteL);
+    } else {
+      const localTime = localL.last_edited_date ?? 0;
+      const remoteTime = remoteL.last_edited_date ?? 0;
+      if (remoteTime > localTime) {
+        toUpdateLocally.push(remoteL);
+      }
+    }
+  }
 
   for (const lookup of locals) {
+    const g = lookup.guid.toUpperCase();
+    const remoteFeature = remoteByGuid.get(g);
+
     const attrs = stripReadOnly({
       guid:        lookup.guid,
       feature:     lookup.feature,
@@ -655,16 +783,23 @@ async function syncLookups(token: string): Promise<void> {
       description: lookup.description,
     });
 
-    const remoteFeature = remoteByGuid.get(lookup.guid.toUpperCase());
-    if (remoteFeature) {
-      if (hasChanges(attrs, remoteFeature.attributes)) {
-        attrs['OBJECTID'] = remoteFeature.attributes['OBJECTID'];
-        updates.push({ attributes: attrs });
-      }
-    } else {
+    if (!remoteFeature) {
       adds.push({ attributes: attrs });
+    } else {
+      const localTime = lookup.last_edited_date ?? 0;
+      const remoteTime = (remoteFeature.attributes['last_edited_date'] as number | undefined) ?? 0;
+
+      if (localTime >= remoteTime) {
+        if (hasChanges(attrs, remoteFeature.attributes)) {
+          attrs['OBJECTID'] = remoteFeature.attributes['OBJECTID'];
+          updates.push({ attributes: attrs });
+        }
+      }
     }
   }
+
+  if (toAddLocally.length) await db.lookups.bulkAdd(toAddLocally);
+  if (toUpdateLocally.length) await db.lookups.bulkPut(toUpdateLocally);
 
   const result = await applyEdits(LAYER.lookup, adds, updates, token);
   await logApplyResults('lookups', result, adds, updates);
@@ -685,12 +820,17 @@ async function syncEdits(token: string): Promise<void> {
   const locals = await db.edits.toArray();
   const localByGuid = new Map(locals.map(e => [e.guid.toUpperCase(), e]));
 
-  const toAdd: IEdit[] = [];
+  const toAddLocally: IEdit[] = [];
+  const toUpdateLocally: IEdit[] = [];
+  const adds:    EsriFeature[] = [];
+  const updates: EsriFeature[] = [];
+
   for (const f of remote) {
     const g = (f.attributes['guid'] as string | undefined)?.toUpperCase();
-    if (!g || localByGuid.has(g)) continue;
+    if (!g) continue;
+
     const a = f.attributes;
-    toAdd.push({
+    const remoteE: IEdit = {
       guid:        a['guid'] as string,
       table_name:  a['table_name'] as string,
       record_guid: a['record_guid'] as string,
@@ -701,14 +841,28 @@ async function syncEdits(token: string): Promise<void> {
       edit_date:   a['edit_date'] as number,
       OBJECTID:    a['OBJECTID'] as number | undefined,
       GlobalID:    a['GlobalID'] as string | undefined,
-    });
-  }
-  if (toAdd.length) await db.edits.bulkAdd(toAdd);
+      created_user:     a['created_user'] as string | undefined,
+      created_date:     a['created_date'] as number | undefined,
+      last_edited_user: a['last_edited_user'] as string | undefined,
+      last_edited_date: a['last_edited_date'] as number | undefined,
+    };
 
-  const adds:    EsriFeature[] = [];
-  const updates: EsriFeature[] = [];
+    const localE = localByGuid.get(g);
+    if (!localE) {
+      toAddLocally.push(remoteE);
+    } else {
+      const localTime = localE.last_edited_date ?? 0;
+      const remoteTime = remoteE.last_edited_date ?? 0;
+      if (remoteTime > localTime) {
+        toUpdateLocally.push(remoteE);
+      }
+    }
+  }
 
   for (const edit of locals) {
+    const g = edit.guid.toUpperCase();
+    const remoteFeature = remoteByGuid.get(g);
+
     const attrs = stripReadOnly({
       guid:        edit.guid,
       table_name:  edit.table_name,
@@ -720,16 +874,23 @@ async function syncEdits(token: string): Promise<void> {
       edit_date:   toEsriNumber(edit.edit_date),
     });
 
-    const remoteFeature = remoteByGuid.get(edit.guid.toUpperCase());
-    if (remoteFeature) {
-      if (hasChanges(attrs, remoteFeature.attributes)) {
-        attrs['OBJECTID'] = remoteFeature.attributes['OBJECTID'];
-        updates.push({ attributes: attrs });
-      }
-    } else {
+    if (!remoteFeature) {
       adds.push({ attributes: attrs });
+    } else {
+      const localTime = edit.last_edited_date ?? 0;
+      const remoteTime = (remoteFeature.attributes['last_edited_date'] as number | undefined) ?? 0;
+
+      if (localTime >= remoteTime) {
+        if (hasChanges(attrs, remoteFeature.attributes)) {
+          attrs['OBJECTID'] = remoteFeature.attributes['OBJECTID'];
+          updates.push({ attributes: attrs });
+        }
+      }
     }
   }
+
+  if (toAddLocally.length) await db.edits.bulkAdd(toAddLocally);
+  if (toUpdateLocally.length) await db.edits.bulkPut(toUpdateLocally);
 
   const result = await applyEdits(LAYER.edit, adds, updates, token);
   await logApplyResults('edits', result, adds, updates);

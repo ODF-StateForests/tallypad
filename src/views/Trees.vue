@@ -1,6 +1,7 @@
 // TODO: Add a maximum time setting for the wakelock to prevent accidental battery drain
 // TODO: Add n-trees to header
 // TODO: Add local edit time tracking so the database import routine can handle device-device merges cleanly
+// TODO: Show cursor when editing string fields on desktop
 
 <template>
   <div id="app-inner" :class="{ 'dark-mode': store.isDarkMode.value }">
@@ -106,7 +107,7 @@
                     @change="saveRow(row)"
                     class="bg-transparent border-0 outline-none text-inherit font-inherit cursor-pointer select-dropdown w-full h-full"
                   >
-                    <option value=""></option>
+                    <option v-if="activeColConfig.allowNull" value=""></option>
                     <option v-for="opt in col.options" :key="opt" :value="opt">{{ opt }}</option>
                   </select>
                 </template>
@@ -161,6 +162,13 @@
           :class="{ 'active-chip': rows[activeRow][activeColConfig.key] === opt }">
           {{ opt }}
         </button>
+        <button
+          v-if="activeColConfig.allowNull"
+          @click="setVal('')"
+          class="chip"
+          :class="{ 'active-chip': rows[activeRow][activeColConfig.key] === '' }">
+          NULL
+        </button>
       </div>
       <div v-else-if="activeColConfig?.type === 'string'" class="flex flex-col gap-2 h-full p-1">
         <input
@@ -199,6 +207,7 @@ type Column = {
   visible: boolean;
   freeze?: boolean;
   options?: string[];
+  allowNull?: boolean;
 };
 
 type RowKey =
@@ -300,7 +309,7 @@ const columns = computed<Column[]>((): Column[] => [
   { label: 'BD', key: 'upstd', type: 'number', visible: true },
   { label: 'BHT', key: 'upstht', type: 'number', visible: true },
   { label: 'CR', key: 'cr', type: 'number', visible: true },
-  { label: 'CC', key: 'cc', type: 'select', visible: true, options: ccOptions.value },
+  { label: 'CC', key: 'cc', type: 'select', visible: true, options: ccOptions.value, allowNull: true },
   { label: 'D1', key: 'd1', type: 'number', visible: true },
   { label: 'S1', key: 's1', type: 'number', visible: true },
   { label: 'D2', key: 'd2', type: 'number', visible: true },
@@ -310,7 +319,7 @@ const columns = computed<Column[]>((): Column[] => [
   { label: 'Def1', key: 'def1', type: 'number', visible: true },
   { label: 'Def2', key: 'def2', type: 'number', visible: true },
   { label: 'Def3', key: 'def3', type: 'number', visible: true },
-  { label: 'CND', key: 'c', type: 'select', options: cOptions.value, visible: true },
+  { label: 'CND', key: 'c', type: 'select', options: cOptions.value, visible: true, allowNull: true },
   { label: 'Age', key: 'age', type: 'number', visible: true },
   { label: 'BT', key: 'bt', type: 'number', visible: true },
   { label: '5yr', key: 'fiveyr', type: 'number', visible: true },
@@ -322,6 +331,7 @@ const columns = computed<Column[]>((): Column[] => [
 
 const rows = ref<Row[]>([]);
 
+// The row displayed to the user combines tree and measure values
 const treeAndMeasToRow = (tree: ITree, meas: ITreeMeasurement | undefined, visitNum: number, isPrior: boolean, isNew: boolean): Row => ({
   visit_guid: meas?.visit_guid,
   plot_guid: tree.plot_guid,
@@ -329,36 +339,36 @@ const treeAndMeasToRow = (tree: ITree, meas: ITreeMeasurement | undefined, visit
   measurement_guid: meas?.guid || crypto.randomUUID(),
   visit_number: visitNum,
   tree_num: tree.tree_num,
-  az: tree.az || 0,
-  hd: tree.hd || 0,
-  sp: tree.sp,
-  gp: meas?.gp || '',
-  gt: meas?.gt || '',
-  dbh: meas?.dbh || '',
-  s: meas?.s || '',
-  upstd: meas?.upstd || '',
-  upstht: meas?.upstht || '',
-  cr: meas?.cr || '',
-  cc: meas?.cc || '',
-  ht: meas?.ht || '',
-  fc: meas?.fc || '',
-  d1: meas?.d1 || '',
-  s1: meas?.s1 || '',
-  d2: meas?.d2 || '',
-  s2: meas?.s2 || '',
-  d3: meas?.d3 || '',
-  s3: meas?.s3 || '',
-  def1: meas?.def1 || '',
-  def2: meas?.def2 || '',
-  def3: meas?.def3 || '',
-  c: meas?.c || '',
-  age: meas?.age || '',
-  bt: meas?.bt || '',
-  fiveyr: meas?.fiveyr || '',
-  tenyr: meas?.tenyr || '',
-  ref: tree?.ref || '',
-  sd: tree?.sd || '',
-  remarks: meas?.remarks || '',
+  az: tree.az ?? '',
+  hd: tree.hd ?? '',
+  sp: tree.sp ?? '',
+  gp: meas?.gp ?? '',
+  gt: meas?.gt ?? '',
+  dbh: meas?.dbh ?? '',
+  s: meas?.s ?? '',
+  upstd: meas?.upstd ?? '',
+  upstht: meas?.upstht ?? '',
+  cr: meas?.cr ?? '',
+  cc: meas?.cc ?? '',
+  ht: meas?.ht ?? '',
+  fc: meas?.fc ?? '',
+  d1: meas?.d1 ?? '',
+  s1: meas?.s1 ?? '',
+  d2: meas?.d2 ?? '',
+  s2: meas?.s2 ?? '',
+  d3: meas?.d3 ?? '',
+  s3: meas?.s3 ?? '',
+  def1: meas?.def1 ?? '',
+  def2: meas?.def2 ?? '',
+  def3: meas?.def3 ?? '',
+  c: meas?.c ?? '',
+  age: meas?.age ?? '',
+  bt: meas?.bt ?? '',
+  fiveyr: meas?.fiveyr ?? '',
+  tenyr: meas?.tenyr ?? '',
+  ref: tree.ref ?? '',
+  sd: tree.sd ?? '',
+  remarks: meas?.remarks ?? '',
   isPrior,
   isNew
 });
@@ -458,6 +468,12 @@ const loadRows = async () => {
   cellNeedsOverwrite.value = true;
 };
 
+const toNumOrUndef = (val: any) => {
+  if (val === '' || val === null || val === undefined) return undefined;
+  const n = Number(val);
+  return Number.isNaN(n) ? undefined : n;
+};
+
 // Save a row to database
 const saveRow = async (row: Row) => {
   if (row.isPrior) return;
@@ -466,11 +482,11 @@ const saveRow = async (row: Row) => {
     guid: row.tree_guid,
     plot_guid: row.plot_guid,
     tree_num: Number(row.tree_num),
-    az: Number(row.az),
-    hd: Number(row.hd),
+    az: toNumOrUndef(row.az),
+    hd: toNumOrUndef(row.hd),
     sp: row.sp,
     ref: row.ref,
-    sd: Number(row.sd),
+    sd: toNumOrUndef(row.sd),
     remarks: row.remarks
   };
 
@@ -481,27 +497,27 @@ const saveRow = async (row: Row) => {
     dbh: Number(row.dbh),
     gp: row.gp,
     gt: Number(row.gt),
-    s: row.s,
-    fc: Number(row.fc),
-    ht: Number(row.ht),
-    upstd: Number(row.upstd),
-    upstht: Number(row.upstht),
-    cr: Number(row.cr),
-    cc: row.cc,
-    d1: Number(row.d1),
-    s1: Number(row.s1),
-    d2: Number(row.d2),
-    s2: Number(row.s2),
-    d3: Number(row.d3),
-    s3: Number(row.s3),
-    def1: Number(row.def1),
-    def2: Number(row.def2),
-    def3: Number(row.def3),
-    c: row.c,
-    age: Number(row.age),
-    bt: Number(row.bt),
-    fiveyr: Number(row.fiveyr),
-    tenyr: Number(row.tenyr),
+    s: Number(row.s),
+    fc: toNumOrUndef(row.fc),
+    ht: toNumOrUndef(row.ht),
+    upstd: toNumOrUndef(row.upstd),
+    upstht: toNumOrUndef(row.upstht),
+    cr: toNumOrUndef(row.cr),
+    cc: toNumOrUndef(row.cc),
+    d1: toNumOrUndef(row.d1),
+    s1: toNumOrUndef(row.s1),
+    d2: toNumOrUndef(row.d2),
+    s2: toNumOrUndef(row.s2),
+    d3: toNumOrUndef(row.d3),
+    s3: toNumOrUndef(row.s3),
+    def1: toNumOrUndef(row.def1),
+    def2: toNumOrUndef(row.def2),
+    def3: toNumOrUndef(row.def3),
+    c: toNumOrUndef(row.c),
+    age: toNumOrUndef(row.age),
+    bt: toNumOrUndef(row.bt),
+    fiveyr: toNumOrUndef(row.fiveyr),
+    tenyr: toNumOrUndef(row.tenyr),
     remarks: row.remarks
   };
 
@@ -587,12 +603,22 @@ const move = async (dir: 'up' | 'down' | 'left' | 'right') => {
   if (dir === 'left') {
     const visibleIndices = columns.value.map((col, i) => col.visible ? i : -1).filter(i => i !== -1);
     const currentIdx = visibleIndices.indexOf(c);
-    if (currentIdx > 0) activeCol.value = visibleIndices[currentIdx - 1];
+    if (currentIdx > 0) {
+      activeCol.value = visibleIndices[currentIdx - 1];
+    } else if (currentIdx === 0 && r>1) {
+      activeCol.value = visibleIndices[visibleIndices.length - 1];
+      move('up');
+    }
   }
   if (dir === 'right') {
     const visibleIndices = columns.value.map((col, i) => col.visible ? i : -1).filter(i => i !== -1);
     const currentIdx = visibleIndices.indexOf(c);
-    if (currentIdx < visibleIndices.length - 1) activeCol.value = visibleIndices[currentIdx + 1];
+    if (currentIdx < visibleIndices.length - 1){
+      activeCol.value = visibleIndices[currentIdx + 1];
+    } else if (currentIdx === visibleIndices.length - 1) {
+      activeCol.value = visibleIndices[5];
+      move('down');
+    }
   }
   captureSnapshot();
   cellNeedsOverwrite.value = true;
@@ -609,11 +635,15 @@ const pressKey = (key: number | 'back' | '.') => {
 
 
   if (key === 'back') {
-    if (cellNeedsOverwrite.value) {
+    if (activeColConfig.value.type === 'number') {
+      row[colKey] = '';
+      cellNeedsOverwrite.value = false;
+    } else if (cellNeedsOverwrite.value && activeColConfig.value.type !== 'string') {
       row[colKey] = '';
       cellNeedsOverwrite.value = false;
     } else {
       row[colKey] = current.slice(0, -1);
+      cellNeedsOverwrite.value = false;
     }
   } else {
     if (cellNeedsOverwrite.value) {
@@ -802,11 +832,15 @@ const handleGlobalKeydown = async (event: KeyboardEvent) => {
   if (event.key === 'Backspace') {
     event.preventDefault();
     const current = String(row[colKey] ?? '');
-    if (cellNeedsOverwrite.value) {
+    if (colConfig.type === 'number') {
+      row[colKey] = '';
+      cellNeedsOverwrite.value = false;
+    } else if (cellNeedsOverwrite.value && colConfig.type !== 'string') {
       row[colKey] = '';
       cellNeedsOverwrite.value = false;
     } else {
       row[colKey] = current.slice(0, -1);
+      cellNeedsOverwrite.value = false;
     }
     await saveRow(row);
     return;
@@ -871,12 +905,8 @@ const handleGlobalKeydown = async (event: KeyboardEvent) => {
     } else if (colConfig.type === 'string') {
       event.preventDefault();
       const current = String(row[colKey] ?? '');
-      if (cellNeedsOverwrite.value) {
-        row[colKey] = event.key;
-        cellNeedsOverwrite.value = false;
-      } else {
-        row[colKey] = current + event.key;
-      }
+      row[colKey] = current + event.key;
+      cellNeedsOverwrite.value = false;
       await saveRow(row);
     }
   }

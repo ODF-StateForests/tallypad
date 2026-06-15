@@ -76,7 +76,7 @@ export interface ITreeMeasurement extends EsriTableBase {
   gp: string;
   gt: number;
   dbh: number;
-  s: string;
+  s: number;
   fc?: number;
   ht?: number;
   age?: number;
@@ -159,6 +159,32 @@ export class TallypadDB extends Dexie {
     this.version(2).stores({
       syncErrors: '++id, table_name, record_guid, timestamp'
     });
+
+    // Hook to automatically set/update last_edited_date on all data tables
+    for (const table of this.tables) {
+      if (table.name === 'syncErrors') continue;
+
+      table.hook('creating', (primKey, obj) => {
+        const o = obj as any;
+        if (o && (o.last_edited_date === undefined || o.last_edited_date === null)) {
+          o.last_edited_date = Date.now();
+        }
+      });
+
+      table.hook('updating', (mods, primKey, obj) => {
+        const m = mods as any;
+        const o = obj as any;
+        // console.log(mods)
+        // console.log(o)
+        if (m) {
+          if (!('last_edited_date' in m)) {
+            return { last_edited_date: Date.now() };
+          } else if (typeof m.last_edited_date !== 'number' || m.last_edited_date < (o.last_edited_date || 0)) {
+            return { last_edited_date: Date.now() };
+          }
+        }
+      });
+    }
   }
 }
 
