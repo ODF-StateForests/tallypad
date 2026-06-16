@@ -160,6 +160,11 @@ export class TallypadDB extends Dexie {
       syncErrors: '++id, table_name, record_guid, timestamp'
     });
 
+    this.version(3).stores({
+      plotTrees: `${localGuidFieldName}, plot_guid, tree_num, sp`,
+      treeMeasurements: `${localGuidFieldName}, tree_guid, visit_guid, gp, s, cc, c`
+    });
+
     // Hook to automatically set/update last_edited_date on all data tables
     for (const table of this.tables) {
       if (table.name === 'syncErrors') continue;

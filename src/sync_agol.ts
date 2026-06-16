@@ -722,6 +722,51 @@ async function syncMeasurements(token: string): Promise<void> {
 
 // ---- Lookups (table 6) -----------------------------------------------------
 
+async function isLookupUsed(lookup: ILookups): Promise<boolean> {
+  const code = lookup.code;
+  if (!code) return false;
+
+  switch (lookup.feature) {
+    case 'sp': {
+      const count = await db.plotTrees.where('sp').equals(code).count();
+      return count > 0;
+    }
+    case 'gp': {
+      const count = await db.treeMeasurements.where('gp').equals(code).count();
+      return count > 0;
+    }
+    case 's': {
+      const numCode = Number(code);
+      if (!isNaN(numCode)) {
+        const count = await db.treeMeasurements.where('s').equals(numCode).count();
+        if (count > 0) return true;
+      }
+      const countStr = await db.treeMeasurements.where('s').equals(code).count();
+      return countStr > 0;
+    }
+    case 'cc': {
+      const numCode = Number(code);
+      if (!isNaN(numCode)) {
+        const count = await db.treeMeasurements.where('cc').equals(numCode).count();
+        if (count > 0) return true;
+      }
+      const countStr = await db.treeMeasurements.where('cc').equals(code).count();
+      return countStr > 0;
+    }
+    case 'c': {
+      const numCode = Number(code);
+      if (!isNaN(numCode)) {
+        const count = await db.treeMeasurements.where('c').equals(numCode).count();
+        if (count > 0) return true;
+      }
+      const countStr = await db.treeMeasurements.where('c').equals(code).count();
+      return countStr > 0;
+    }
+    default:
+      return false;
+  }
+}
+
 async function syncLookups(token: string): Promise<void> {
   await db.syncErrors.where('table_name').equals('lookups').delete();
   const remote = await queryAll(LAYER.lookup, token);
@@ -737,6 +782,7 @@ async function syncLookups(token: string): Promise<void> {
 
   const toAddLocally: ILookups[] = [];
   const toUpdateLocally: ILookups[] = [];
+  const toDeleteLocally: string[] = [];
   const adds:    EsriFeature[] = [];
   const updates: EsriFeature[] = [];
 
@@ -765,7 +811,7 @@ async function syncLookups(token: string): Promise<void> {
     } else {
       const localTime = localL.last_edited_date ?? 0;
       const remoteTime = remoteL.last_edited_date ?? 0;
-      if (remoteTime > localTime) {
+      if (remoteTime > localTime || localL.OBJECTID === undefined || localL.GlobalID === undefined) {
         toUpdateLocally.push(remoteL);
       }
     }
@@ -784,7 +830,19 @@ async function syncLookups(token: string): Promise<void> {
     });
 
     if (!remoteFeature) {
-      adds.push({ attributes: attrs });
+      console.log('No remote lookup:', attrs['feature'], attrs['code'])
+      if (lookup.OBJECTID === undefined || lookup.OBJECTID === null) {
+        console.log('Adding new')
+        adds.push({ attributes: attrs });
+      } else {
+        const isUsed = await isLookupUsed(lookup);
+        if (!isUsed) {
+          console.log('Unused, deleting')
+          toDeleteLocally.push(lookup.guid);
+        } else {
+          console.log('In use, keeping')
+        }
+      }
     } else {
       const localTime = lookup.last_edited_date ?? 0;
       const remoteTime = (remoteFeature.attributes['last_edited_date'] as number | undefined) ?? 0;
@@ -800,6 +858,10 @@ async function syncLookups(token: string): Promise<void> {
 
   if (toAddLocally.length) await db.lookups.bulkAdd(toAddLocally);
   if (toUpdateLocally.length) await db.lookups.bulkPut(toUpdateLocally);
+  if (toDeleteLocally.length) {
+    await db.lookups.bulkDelete(toDeleteLocally);
+    console.info(`[sync] lookups -- deleted ${toDeleteLocally.length} local lookup(s) because they were removed from the server`);
+  }
 
   const result = await applyEdits(LAYER.lookup, adds, updates, token);
   await logApplyResults('lookups', result, adds, updates);
