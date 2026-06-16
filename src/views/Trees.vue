@@ -537,16 +537,6 @@ const saveRow = async (row: Row) => {
   ]);
 };
 
-// Delete a row from database
-// TODO: Ensure deleting trees is not allowed for incomplete visits
-const deleteRow = async (row: Row) => {
-  if (row.tree_guid) {
-    await Promise.all([
-      db.plotTrees.delete(row.tree_guid),
-      db.treeMeasurements.where('tree_globalid').equals(row.tree_guid).delete()
-    ]);
-  }
-};
 
 const activeColConfig = computed(() => columns.value[activeCol.value]);
 
@@ -721,28 +711,108 @@ const addRow = async () => {
   saveRow(newRow);
 };
 
-// TODO: Use visit status not complete to ensure allowed deletion rather than row status
 const removeRow = async () => {
-  if (rows.value.length > 1) {
-    const rowToDelete = rows.value[activeRow.value];
+  if (rows.value.length === 0) return;
 
-    if (!rowToDelete.isNew) {
-      alert("Only new tree records can be deleted. Records from prior visits cannot be removed.");
-      return;
-    }
-
-    const rowIndex = activeRow.value + 1;
-    const message = `Delete tree ${rowToDelete['tree_num']}? This cannot be undone.`;
-    if (!confirm(message)) return;
-    rows.value.splice(activeRow.value, 1);
-
-    if (activeRow.value >= rows.value.length) {
-      activeRow.value = rows.value.length - 1;
-    }
-
-    // Delete the row from database
-    await deleteRow(rowToDelete);
+  if (store.selectedVisit.value?.status !== 'In Progress') {
+    alert("Measurement records can only be deleted if the visit status is 'In Progress'.");
+    return;
   }
+
+  const rowToDelete = rows.value[activeRow.value];
+  if (!rowToDelete) return;
+
+  if (rowToDelete.isPrior) {
+    alert("Records from prior visits cannot be removed.");
+    return;
+  }
+
+  const message = `Delete measurement for tree ${rowToDelete['tree_num']}? This cannot be undone.`;
+  if (!confirm(message)) return;
+
+  // Check if tree is associated with another visit
+  const measurements = await db.treeMeasurements.where('tree_guid').equals(rowToDelete.tree_guid).toArray();
+  const otherMeasurements = measurements.filter(m => m.visit_guid !== store.selectedVisit.value?.guid);
+
+  let deleteTree = false;
+  if (otherMeasurements.length === 0) {
+    deleteTree = confirm(`This tree record is not associated with any other visits. Do you want to delete the tree record as well?`);
+  }
+
+  // 1. Delete the measurement record for this visit
+  const measRecord = await db.treeMeasurements.where('tree_guid').equals(rowToDelete.tree_guid)
+    .filter(m => m.visit_guid === store.selectedVisit.value?.guid)
+    .first();
+
+  if (measRecord) {
+    // If the record has been synced (has OBJECTID or GlobalID), track it for server deletion
+    if (measRecord.OBJECTID || measRecord.GlobalID) {
+      await db.deletedRecords.put({
+        guid: measRecord.guid,
+        table_name: 'measurement',
+        objectid: measRecord.OBJECTID,
+        globalid: measRecord.GlobalID,
+        deleted_date: Date.now()
+      });
+    }
+    await db.treeMeasurements.delete(measRecord.guid);
+  }
+
+  // 2. Delete the tree record if requested
+  if (deleteTree) {
+    const treeRecord = await db.plotTrees.get(rowToDelete.tree_guid);
+    if (treeRecord) {
+      if (treeRecord.OBJECTID || treeRecord.GlobalID) {
+        await db.deletedRecords.put({
+          guid: treeRecord.guid,
+          table_name: 'tree',
+          objectid: treeRecord.OBJECTID,
+          globalid: treeRecord.GlobalID,
+          deleted_date: Date.now()
+        });
+      }
+      await db.plotTrees.delete(rowToDelete.tree_guid);
+    }
+  }
+
+  // 3. Update local UI state
+  if (deleteTree) {
+    // Remove all rows associated with this tree (prior and current)
+    rows.value = rows.value.filter(r => r.tree_guid !== rowToDelete.tree_guid);
+  } else {
+    // Keep the tree but clear the current measurement values
+    const rowIndex = rows.value.findIndex(r => r.measurement_guid === rowToDelete.measurement_guid);
+    if (rowIndex !== -1) {
+      const tree = await db.plotTrees.get(rowToDelete.tree_guid);
+      if (tree) {
+        const pm = rows.value.find(r => r.tree_guid === rowToDelete.tree_guid && r.isPrior);
+        const updatedRow = treeAndMeasToRow(tree, undefined, store.selectedVisit.value?.visit_number || 1, false, !pm);
+        rows.value[rowIndex] = updatedRow;
+      }
+    }
+  }
+
+  // Adjust activeRow if it's out of bounds or pointing to a prior row
+  if (activeRow.value >= rows.value.length) {
+    activeRow.value = rows.value.length - 1;
+  }
+  while (activeRow.value >= 0 && rows.value[activeRow.value].isPrior) {
+    activeRow.value--;
+  }
+  if (activeRow.value < 0) {
+    activeRow.value = rows.value.findIndex(r => !r.isPrior);
+  }
+  if (activeRow.value === -1) {
+    activeRow.value = 0;
+  }
+
+  // If no records are left, insert a default row
+  if (rows.value.length === 0) {
+    await addRow();
+  }
+
+  captureSnapshot();
+  cellNeedsOverwrite.value = true;
 };
 
 const updateFullscreenState = () => {

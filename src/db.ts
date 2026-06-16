@@ -130,6 +130,15 @@ export interface ISyncError {
   timestamp: number;
 }
 
+// --- Deleted Records Tracking ---
+export interface IDeletedRecord {
+  guid: string;
+  table_name: string; // 'tree' or 'measurement'
+  objectid?: number;
+  globalid?: string;
+  deleted_date: number;
+}
+
 export class TallypadDB extends Dexie {
   // Define Table types using the interfaces
   plots!: Table<IPlot, string>; // string denotes the type of the Primary Key (globalid)
@@ -140,6 +149,7 @@ export class TallypadDB extends Dexie {
   lookups!: Table<ILookups, string>;
   edits!: Table<IEdit, string>;
   syncErrors!: Table<ISyncError, number>;
+  deletedRecords!: Table<IDeletedRecord, string>;
 
   constructor() {
     super('tallypad');
@@ -165,9 +175,13 @@ export class TallypadDB extends Dexie {
       treeMeasurements: `${localGuidFieldName}, tree_guid, visit_guid, gp, s, cc, c`
     });
 
+    this.version(4).stores({
+      deletedRecords: 'guid, table_name, deleted_date'
+    });
+
     // Hook to automatically set/update last_edited_date on all data tables
     for (const table of this.tables) {
-      if (table.name === 'syncErrors') continue;
+      if (table.name === 'syncErrors' || table.name === 'deletedRecords') continue;
 
       table.hook('creating', (primKey, obj) => {
         const o = obj as any;

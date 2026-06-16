@@ -26,7 +26,7 @@
 // FIXME: Records with text exceeding the field width on the server will fail to sync.
 //        Capture these in a local table so the user can fix them
 
-import { db, IPlot, IGpsPoint, IPlotVisit, ITree, ITreeMeasurement, ILookups, IEdit, ISyncError } from './db';
+import { db, IPlot, IGpsPoint, IPlotVisit, ITree, ITreeMeasurement, ILookups, IEdit, ISyncError, IDeletedRecord } from './db';
 import { useAppStore } from './stores/appStore'
 
 /** Helper to convert empty string or other falsy values to null, and coerce numbers to valid numbers or null */
@@ -154,15 +154,20 @@ async function applyEdits(
   adds: EsriFeature[],
   updates: EsriFeature[],
   token: string,
+  deletes: (number | string)[] = [],
 ): Promise<ApplyEditsResponse> {
-  if (adds.length === 0 && updates.length === 0) return {};
+  if (adds.length === 0 && updates.length === 0 && deletes.length === 0) return {};
   const url = `${SERVICE_URL}/${layerId}/applyEdits`;
-  const result = await esriPost(url, {
-    adds:              JSON.stringify(adds),
-    updates:           JSON.stringify(updates),
+  
+  const params: Record<string, string> = {
     useGlobalIds:      'false',
     rollbackOnFailure: 'false',
-  }, token) as ApplyEditsResponse;
+  };
+  if (adds.length > 0) params.adds = JSON.stringify(adds);
+  if (updates.length > 0) params.updates = JSON.stringify(updates);
+  if (deletes.length > 0) params.deletes = JSON.stringify(deletes);
+
+  const result = await esriPost(url, params, token) as ApplyEditsResponse;
   return result;
 }
 
@@ -499,6 +504,33 @@ async function syncVisits(token: string): Promise<void> {
 
 async function syncTrees(token: string): Promise<void> {
   await db.syncErrors.where('table_name').equals('trees').delete();
+
+  // Process deletes first
+  const deletedTrees = await db.deletedRecords.where('table_name').equals('tree').toArray();
+  const deleteIds = deletedTrees
+    .map(d => d.objectid)
+    .filter((id): id is number => typeof id === 'number');
+
+  if (deleteIds.length > 0) {
+    const deleteResult = await applyEdits(LAYER.tree, [], [], token, deleteIds);
+    if (deleteResult.deleteResults) {
+      const successfulDeleteIds = deleteResult.deleteResults
+        .filter(r => r.success)
+        .map(r => r.objectId);
+      const toRemove = deletedTrees
+        .filter(d => d.objectid && successfulDeleteIds.includes(d.objectid))
+        .map(d => d.guid);
+      if (toRemove.length > 0) {
+        await db.deletedRecords.bulkDelete(toRemove);
+      }
+    }
+  }
+
+  const unsyncedDeletes = deletedTrees.filter(d => typeof d.objectid !== 'number').map(d => d.guid);
+  if (unsyncedDeletes.length > 0) {
+    await db.deletedRecords.bulkDelete(unsyncedDeletes);
+  }
+
   const remote = await queryAll(LAYER.tree, token);
 
   const remoteByGuid = new Map<string, EsriFeature>();
@@ -592,6 +624,33 @@ async function syncTrees(token: string): Promise<void> {
 
 async function syncMeasurements(token: string): Promise<void> {
   await db.syncErrors.where('table_name').equals('measurements').delete();
+
+  // Process deletes first
+  const deletedMeas = await db.deletedRecords.where('table_name').equals('measurement').toArray();
+  const deleteIds = deletedMeas
+    .map(d => d.objectid)
+    .filter((id): id is number => typeof id === 'number');
+
+  if (deleteIds.length > 0) {
+    const deleteResult = await applyEdits(LAYER.measurement, [], [], token, deleteIds);
+    if (deleteResult.deleteResults) {
+      const successfulDeleteIds = deleteResult.deleteResults
+        .filter(r => r.success)
+        .map(r => r.objectId);
+      const toRemove = deletedMeas
+        .filter(d => d.objectid && successfulDeleteIds.includes(d.objectid))
+        .map(d => d.guid);
+      if (toRemove.length > 0) {
+        await db.deletedRecords.bulkDelete(toRemove);
+      }
+    }
+  }
+
+  const unsyncedDeletes = deletedMeas.filter(d => typeof d.objectid !== 'number').map(d => d.guid);
+  if (unsyncedDeletes.length > 0) {
+    await db.deletedRecords.bulkDelete(unsyncedDeletes);
+  }
+
   const remote = await queryAll(LAYER.measurement, token);
 
   const remoteByGuid = new Map<string, EsriFeature>();
