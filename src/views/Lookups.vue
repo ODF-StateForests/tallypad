@@ -2,7 +2,7 @@
   <div id="app-inner" :class="{ 'dark-mode': store.isDarkMode.value }">
     <!-- Header -->
     <header class="p-4 border-b-2 flex items-center" :style="{ borderColor: 'var(--border-color)', backgroundColor: 'var(--header-bg)' }">
-      <div @click="store.goToPreviousView()" class="m-0 pr-4 cursor-pointer text-xl" title="Back">
+      <div @click="store.goToPreviousView()" class="m-0 pr-4 cursor-pointer text-md" title="Back">
         <icon-fa-arrow-left />
       </div>
       <div class="flex flex-col items-center">

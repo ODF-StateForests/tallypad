@@ -107,25 +107,26 @@
           @click.stop="store.goToPlotDetail(plot)"
           >
           <div class="w-full">
-            <div class="flex justify-between items-start">
+            <div class="flex justify-between gap-2 items-start">
               <div>
-                <div class="text-sm opacity-70 uppercase tracking-wide">Plot</div>
-                <div class="flex items-center gap-2">
-                  <h2 class="text-xl font-bold mb-3">{{ plot.plotid }}</h2>
-                </div>
+                <div class="text-sm opacity-70 tracking-wide">Plot</div>
+                <span class="text-md font-bold mb-1">{{ plot.plotid }}</span>
+              </div>
+              <div>
                 <div class="text-sm opacity-70 tracking-wide">Coordinates</div>
-                <h2 class="text-sm">{{ plot.coords }}</h2>
+                <span class="text-sm font-bold">{{ plot.coords }}</span>
               </div>
-              <div class="text-right">
-                <div class="text-sm opacity-70 uppercase tracking-wide">Trees</div>
-                <h2 class="text-xl font-bold mb-3">{{ plot.latestTreeCount }}</h2>
-                <div class="flex items-center gap-2">
-                  <button class="p-1 text-sm hover:opacity-100 cursor-pointer" @click.stop="waypointToPlot(plot)">⚑</button>
-                  <button class="p-1 text-sm hover:opacity-100 cursor-pointer" @click.stop="navigateToPlot(plot)">🚗</button>
-                </div>
+              <div class="items-center">
+                <div class="text-sm opacity-70 tracking-wide">Trees</div>
+                <span class="text-md font-bold mb-1">{{ plot.latestTreeCount }}</span>
               </div>
-            </div>
-            <div class="flex gap-2 overflow-x-auto pb-1 no-scrollbar mt-4">
+              <div class="flex flex-col">
+                <button class="p-0 text-sm hover:opacity-100 cursor-pointer" @click.stop="waypointToPlot(plot)">⚑</button>
+                <button class="p-0 text-sm hover:opacity-100 cursor-pointer" @click.stop="navigateToPlot(plot)">🚗</button>
+              </div>
+            </div>    
+            
+            <div class="flex gap-2 overflow-x-auto pb-1 no-scrollbar mt-2">
               <button 
                 v-for="visit in plot.visits"
                 :key="visit.guid"
@@ -284,7 +285,7 @@ const loadPlots = async () => {
       const visits = await db.plotVisits
         .where('plot_guid')
         .equals(plot.guid)
-        .sortBy('measurement_date');
+        .sortBy('visit_number');
 
       let latestTreeCount = 0;
       if (visits.length > 0) {
@@ -505,7 +506,7 @@ const waypointToPlot = async (plot: IPlotWithVisits) => {
   color: var(--text-primary);
   border: 1px solid var(--border-color);
   border-radius: 8px;
-  padding: 8px 16px;
+  padding: 6px 10px;
   font-weight: bold;
   white-space: nowrap;
   cursor: pointer;

@@ -1,7 +1,7 @@
 <template>
   <div id="app-inner" :class="{ 'dark-mode': store.isDarkMode.value }">
     <header class="p-2 border-b-2 flex items-center" :style="{ borderColor: 'var(--border-color)', backgroundColor: 'var(--header-bg)' }">
-      <div @click="store.goToPreviousView()" class="m-0 pr-4 cursor-pointer text-xl">
+      <div @click="store.goToPreviousView()" class="m-0 pr-4 cursor-pointer text-md">
         <icon-fa-arrow-left />
       </div>
       <div class="flex flex-col items-center">
