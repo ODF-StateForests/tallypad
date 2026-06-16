@@ -713,9 +713,9 @@ const addRow = async () => {
 
 const removeRow = async () => {
   if (rows.value.length === 0) return;
-
-  if (store.selectedVisit.value?.status !== 'In Progress') {
-    alert("Measurement records can only be deleted if the visit status is 'In Progress'.");
+  console.log(store.selectedVisit.value);
+  if (store.selectedVisit.value?.status !== 'Active') {
+    alert("Measurement records can only be deleted if the visit status is 'Active'.");
     return;
   }
 

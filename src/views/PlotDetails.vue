@@ -57,7 +57,7 @@
                 class="bg-[var(--bg-primary)] border border-[var(--border-color)] rounded px-2 py-0.5 font-semibold text-xs text-[var(--text-primary)] cursor-pointer outline-none focus:border-[var(--accent)]"
               >
                 <option value="Planned">Planned</option>
-                <option value="In Progress">In Progress</option>
+                <option value="Active">Active</option>
                 <option value="Dropped">Dropped</option>
                 <option value="Completed">Completed</option>
               </select>
