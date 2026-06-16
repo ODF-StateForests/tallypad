@@ -182,7 +182,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted , onBeforeUnmount, computed } from 'vue';
+import { ref, onMounted, onUnmounted , onBeforeUnmount, computed, watch } from 'vue';
 import { useAppStore } from './stores/appStore';
 import { db, IPlot, IPlotVisit, ITree, ITreeMeasurement, renewDatabase } from './db';
 import Trees from './views/Trees.vue';
@@ -204,6 +204,15 @@ interface IPlotWithVisits extends IPlot {
 const plots = ref<IPlotWithVisits[]>([]);
 const statusQuery = ref('');
 const plotIdQuery = ref('');
+
+watch(
+  () => store.currentView.value,
+  (newView) => {
+    if (newView === 'plots') {
+      loadPlots();
+    }
+  }
+);
 
 const filteredPlots = computed(() => {
   let result = plots.value;
@@ -233,12 +242,14 @@ const closeMenu = () => {
 
 const selectVisit = async (plot: IPlot, visit: IPlotVisit) => {
   closeMenu();
+  const latestVisit = await db.plotVisits.get(visit.guid);
+  if (!latestVisit) return;
   const [trees, measurements] = await Promise.all([
     db.plotTrees.where('plot_guid').equals(plot.guid).toArray(),
-    db.treeMeasurements.where('visit_guid').equals(visit.guid).toArray(),
+    db.treeMeasurements.where('visit_guid').equals(latestVisit.guid).toArray(),
   ]);
-  console.log('N Trees:', trees.length, 'Plot GUID:', plot.guid, 'Visit GUID:', visit.guid);
-  store.goToTrees(plot, visit, trees, measurements);
+  // console.log('N Trees:', trees.length, 'Plot GUID:', plot.guid, 'Visit GUID:', latestVisit.guid);
+  store.goToTrees(plot, latestVisit, trees, measurements);
 };
 
 const addNewVisit = async (plot: IPlotWithVisits) => {
