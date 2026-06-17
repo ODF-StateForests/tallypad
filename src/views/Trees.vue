@@ -261,6 +261,7 @@ type RowKey =
 interface Row extends Record<RowKey, any> {
   isPrior: boolean;
   isNew: boolean;
+  hasError: boolean;
 }
 
 const store = useAppStore();
@@ -342,7 +343,7 @@ const columns = computed<Column[]>((): Column[] => [
 const rows = ref<Row[]>([]);
 
 // The row displayed to the user combines tree and measure values
-const treeAndMeasToRow = (tree: ITree, meas: ITreeMeasurement | undefined, visitNum: number, isPrior: boolean, isNew: boolean): Row => ({
+const treeAndMeasToRow = (tree: ITree, meas: ITreeMeasurement | undefined, visitNum: number, isPrior: boolean, isNew: boolean, hasError: boolean): Row => ({
   visit_guid: meas?.visit_guid,
   plot_guid: tree.plot_guid,
   tree_guid: tree.guid,
@@ -380,7 +381,8 @@ const treeAndMeasToRow = (tree: ITree, meas: ITreeMeasurement | undefined, visit
   sd: tree.sd ?? '',
   remarks: meas?.remarks ?? '',
   isPrior,
-  isNew
+  isNew,
+  hasError
 });
 
 const captureSnapshot = () => {
@@ -462,14 +464,12 @@ const loadRows = async () => {
     const pm = priorVisit ? priorMeas.find(m => m.tree_guid === tree.guid) : undefined;
     if (priorVisit && pm) {
       const pmHasError = erroredGuids.has(tree.guid.toUpperCase()) || (pm ? erroredGuids.has(pm.guid.toUpperCase()) : false);
-      const row = treeAndMeasToRow(tree, pm, priorVisit.visit_number, true, false);
-      row.hasError = pmHasError;
+      const row = treeAndMeasToRow(tree, pm, priorVisit.visit_number, true, false, pmHasError);
       allRows.push(row);
     }
     const cm = currentMeas.find(m => m.tree_guid === tree.guid);
     const cmHasError = erroredGuids.has(tree.guid.toUpperCase()) || (cm ? erroredGuids.has(cm.guid.toUpperCase()) : false);
-    const row = treeAndMeasToRow(tree, cm, currentVisit.visit_number, false, !pm);
-    row.hasError = cmHasError;
+    const row = treeAndMeasToRow(tree, cm, currentVisit.visit_number, false, !pm, cmHasError);
     allRows.push(row);
   });
 
@@ -707,7 +707,8 @@ const addRow = async () => {
     undefined, 
     store.selectedVisit.value?.visit_number || 1, 
     false,
-    true
+    true,
+    false
   );
 
   rows.value.push(newRow);
@@ -795,9 +796,8 @@ const removeRow = async () => {
       const tree = await db.plotTrees.get(rowToDelete.tree_guid);
       if (tree) {
         const pm = rows.value.find(r => r.tree_guid === rowToDelete.tree_guid && r.isPrior);
-        const updatedRow = treeAndMeasToRow(tree, undefined, store.selectedVisit.value?.visit_number || 1, false, !pm);
         const treeErrors = await db.syncErrors.where('record_guid').equals(tree.guid).count();
-        updatedRow.hasError = treeErrors > 0;
+        const updatedRow = treeAndMeasToRow(tree, undefined, store.selectedVisit.value?.visit_number || 1, false, !pm, treeErrors > 0);
         rows.value[rowIndex] = updatedRow;
       }
     }

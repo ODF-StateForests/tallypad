@@ -54,7 +54,7 @@
           <button @click.stop="toggleMenu" class="p-2 rounded menu-item text-xl font-bold" :style="{ color: 'var(--text-primary)' }">
             <icon-fa7-solid-ellipsis-v />
           </button>
-          <div v-if="isMenuOpen" class="kebab-menu" @click.stop>
+          <div v-if="isMenuOpen" class="kebab-menu" @click.stop>orphaned_gps_points
             <button @click="store.toggleDarkMode()" class="menu-item">
               <icon-fa-sun-o v-if="store.isDarkMode.value" class="menu-icon" />
               <icon-fa-moon-o v-else class="menu-icon" />
@@ -135,7 +135,7 @@
                   @click.stop="selectVisit(plot, visit)"
                   class="visit-chip">
                   V{{ visit.visit_number }}
-                  {{ new Date(visit.measurement_date|| 0).toLocaleDateString()}}
+                  {{ visit.status !== 'Planned' ? new Date(visit.measurement_date).toLocaleDateString() : 'Planned'}}
                 </button>
                 <button 
                   v-show="store.allowAddVisits.value" 

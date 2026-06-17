@@ -415,6 +415,36 @@ async function syncGpsPoints(token: string): Promise<void> {
 
 async function syncVisits(token: string): Promise<void> {
   await db.syncErrors.where('table_name').equals('visits').delete();
+
+  // Process deletes first
+  const deletedVisits = await db.deletedRecords.where('table_name').equals('visit').toArray();
+  const deleteIds = deletedVisits
+    .map(d => d.objectid)
+    .filter((id): id is number => typeof id === 'number');
+
+  if (deleteIds.length > 0) {
+    // console.log(deleteIds.length, 'visit records marked for deletion')
+    const deleteResult = await applyEdits(LAYER.visit, [], [], token, deleteIds);
+    if (deleteResult.deleteResults) {
+      const successfulDeleteIds = deleteResult.deleteResults
+        .filter(r => r.success)
+        .map(r => r.objectId);
+      // console.log(successfulDeleteIds.length, 'visit records deleted on server')
+      const toRemove = deletedVisits
+        .filter(d => d.objectid && successfulDeleteIds.includes(d.objectid))
+        .map(d => d.guid);
+      if (toRemove.length > 0) {
+        await db.deletedRecords.bulkDelete(toRemove);
+      }
+    }
+  }
+
+  const unsyncedDeletes = deletedVisits.filter(d => typeof d.objectid !== 'number').map(d => d.guid);
+  if (unsyncedDeletes.length > 0) {
+    // console.log(unsyncedDeletes.length, "unsynced visits to delete")
+    await db.deletedRecords.bulkDelete(unsyncedDeletes);
+  }
+
   const remote = await queryAll(LAYER.visit, token);
 
   const remoteByGuid = new Map<string, EsriFeature>();

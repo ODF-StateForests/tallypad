@@ -11,7 +11,7 @@
     </header>
 
     <div class=" overflow-y-auto">
-      <div class="max-w-100">
+      <div :class="{ 'max-w-1/2': !store.isMobile.value, 'max-w-100': store.isMobile.value}">
         <div class="flex-1 p-6 space-y-6">
           <section class="space-y-4">
             <h2 class="text-lg font-bold">ArcGIS Online</h2>

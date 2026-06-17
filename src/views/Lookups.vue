@@ -27,7 +27,7 @@
 
     <!-- Table Section -->
     <div class=" overflow-y-auto">
-      <div class="flex-1 p-6 max-w-1/2">
+      <div class="flex-1 p-6" :class="{ 'max-w-1/2': !store.isMobile.value, 'max-w-100': store.isMobile.value}">
         <div class="border border-[var(--border-color)] rounded-lg overflow-hidden bg-[var(--cell-bg)]">
           <div class="overflow-x-auto w-full">
             <table class="w-full border-collapse text-sm text-left">

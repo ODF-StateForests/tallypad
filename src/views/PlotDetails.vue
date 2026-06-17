@@ -14,7 +14,7 @@
 
     <!-- Plot Info Summary -->
     <div class="p-6 bg-[var(--cell-bg)] border-b-2 space-y-4" :style="{ borderColor: 'var(--border-color)' }">
-      <div class="grid grid-cols-2 gap-4">
+      <div class="grid grid-cols-2 gap-4" :class="{ 'max-w-1/2': !store.isMobile.value }">
         <div>
           <span class="opacity-60 block text-xs uppercase font-bold tracking-wider">Established Date</span>
           <span class="font-mono">{{ plot?.established ? new Date(plot.established).toLocaleDateString() : 'N/A' }}</span>
@@ -37,91 +37,93 @@
       </div>
 
       <!-- Visits Cards List -->
-      <div v-if="visits.length === 0" class="p-6 text-center opacity-60 italic border border-[var(--border-color)] rounded-lg bg-[var(--cell-bg)]">
-        No visits recorded for this plot.
-      </div>
-      <div v-else class="grid grid-cols-1 gap-4">
-        <div v-for="visit in visits" :key="visit.guid" class="p-5 rounded-lg border border-[var(--border-color)] bg-[var(--cell-bg)] flex flex-col space-y-4 shadow-sm hover:shadow-md transition-shadow relative">
-          
-          <!-- Card Header: Visit Number, Status, Delete -->
-          <div class="flex items-center justify-between pb-3 border-b border-[var(--border-color)]">
-            <div class="flex items-center gap-2">
-              <span class="text-xs font-bold opacity-60">Visit</span>
-              <span class="px-1.5 py-0.5 text-center font-bold text-[var(--text-primary)">{{ visit.visit_number }}</span>
+      <div :class="{ 'max-w-1/2': !store.isMobile.value }">
+        <div v-if="visits.length === 0" class="p-6 text-center opacity-60 italic border border-[var(--border-color)] rounded-lg bg-[var(--cell-bg)]">
+          No visits recorded for this plot.
+        </div>
+        <div v-else class="grid grid-cols-1 gap-4">
+          <div v-for="visit in visits" :key="visit.guid" class="p-5 rounded-lg border border-[var(--border-color)] bg-[var(--cell-bg)] flex flex-col space-y-4 shadow-sm hover:shadow-md transition-shadow relative">
+            
+            <!-- Card Header: Visit Number, Status, Delete -->
+            <div class="flex items-center justify-between pb-3 border-b border-[var(--border-color)]">
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-bold opacity-60">Visit</span>
+                <span class="px-1.5 py-0.5 text-center font-bold text-[var(--text-primary)">{{ visit.visit_number }}</span>
+              </div>
+              <div class="flex items-center gap-3">
+                <span class="text-xs font-bold opacity-60">Status</span>
+                <select
+                  v-model="visit.status"
+                  @change="saveVisit(visit)"
+                  class="bg-[var(--bg-primary)] border border-[var(--border-color)] rounded px-2 py-0.5 font-semibold text-xs text-[var(--text-primary)] cursor-pointer outline-none focus:border-[var(--accent)]"
+                >
+                  <option value="Planned">Planned</option>
+                  <option value="Active">Active</option>
+                  <option value="Dropped">Dropped</option>
+                  <option value="Completed">Completed</option>
+                </select>
+                
+                <button
+                  v-show="store.allowDropVisits.value"
+                  @click="deleteVisitRecord(visit)"
+                  class="text-red-500 hover:text-red-700 font-bold transition-colors cursor-pointer text-xs"
+                  title="Delete Visit"
+                >
+                  <icon-fa-trash-o />
+                </button>
+              </div>
             </div>
-            <div class="flex items-center gap-3">
-              <span class="text-xs font-bold opacity-60">Status</span>
-              <select
-                v-model="visit.status"
-                @change="saveVisit(visit)"
-                class="bg-[var(--bg-primary)] border border-[var(--border-color)] rounded px-2 py-0.5 font-semibold text-xs text-[var(--text-primary)] cursor-pointer outline-none focus:border-[var(--accent)]"
-              >
-                <option value="Planned">Planned</option>
-                <option value="Active">Active</option>
-                <option value="Dropped">Dropped</option>
-                <option value="Completed">Completed</option>
-              </select>
+
+            <!-- Card Body: Date, Crew, Remarks -->
+            <div class="grid grid-cols-2 md:grid-cols-2 gap-4">
+                <div class="flex flex-col gap-1.5">
+                  <label class="text-xs font-bold opacity-60">Measurement Date</label>
+                  <input
+                    type="date"
+                    :value="formatDateForInput(visit.measurement_date)"
+                    @change="updateMeasurementDate(visit, $event)"
+                    class="bg-[var(--bg-primary)] border border-[var(--border-color)] rounded px-3 py-2 text-sm font-mono outline-none focus:border-[var(--accent)] text-[var(--text-primary)] cursor-pointer"
+                  />
+                </div>
+
+                <div class="flex flex-col gap-1.5">
+                  <label class="text-xs font-bold opacity-60">Crew Members</label>
+                  <input
+                    type="text"
+                    v-model="visit.crew"
+                    @change="saveVisit(visit)"
+                    placeholder="Enter crew name(s)..."
+                    class="bg-[var(--bg-primary)] border border-[var(--border-color)] rounded px-3 py-2 text-sm outline-none focus:border-[var(--accent)] text-[var(--text-primary)]"
+                  />
+                </div>
               
-              <button
-                v-show="store.allowDropVisits.value"
-                @click="deleteVisitRecord(visit)"
-                class="text-red-500 hover:text-red-700 font-bold transition-colors cursor-pointer text-xs"
-                title="Delete Visit"
+            </div>
+
+            <div class="flex flex-col gap-1.5">
+              <label class="text-xs font-bold opacity-60">Remarks</label>
+              <textarea
+                v-model="visit.remarks"
+                @change="saveVisit(visit)"
+                placeholder="Enter visit remarks..."
+                rows="2"
+                class="bg-[var(--bg-primary)] border border-[var(--border-color)] rounded px-3 py-2 text-sm outline-none focus:border-[var(--accent)] text-[var(--text-primary)] resize-none"
+              ></textarea>
+            </div>
+
+            <!-- Card Actions: View Trees -->
+            <div class="pt-2 flex justify-end">
+              <button 
+                @click="openVisitTrees(visit)"
+                class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
               >
-                <icon-fa-trash-o />
+                Edit Tree Data
               </button>
             </div>
           </div>
-
-          <!-- Card Body: Date, Crew, Remarks -->
-          <div class="grid grid-cols-2 md:grid-cols-2 gap-4">
-              <div class="flex flex-col gap-1.5">
-                <label class="text-xs font-bold opacity-60">Measurement Date</label>
-                <input
-                  type="date"
-                  :value="formatDateForInput(visit.measurement_date)"
-                  @change="updateMeasurementDate(visit, $event)"
-                  class="bg-[var(--bg-primary)] border border-[var(--border-color)] rounded px-3 py-2 text-sm font-mono outline-none focus:border-[var(--accent)] text-[var(--text-primary)] cursor-pointer"
-                />
-              </div>
-
-              <div class="flex flex-col gap-1.5">
-                <label class="text-xs font-bold opacity-60">Crew Members</label>
-                <input
-                  type="text"
-                  v-model="visit.crew"
-                  @change="saveVisit(visit)"
-                  placeholder="Enter crew name(s)..."
-                  class="bg-[var(--bg-primary)] border border-[var(--border-color)] rounded px-3 py-2 text-sm outline-none focus:border-[var(--accent)] text-[var(--text-primary)]"
-                />
-              </div>
-            
-          </div>
-
-          <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-bold opacity-60">Remarks</label>
-            <textarea
-              v-model="visit.remarks"
-              @change="saveVisit(visit)"
-              placeholder="Enter visit remarks..."
-              rows="2"
-              class="bg-[var(--bg-primary)] border border-[var(--border-color)] rounded px-3 py-2 text-sm outline-none focus:border-[var(--accent)] text-[var(--text-primary)] resize-none"
-            ></textarea>
-          </div>
-
-          <!-- Card Actions: View Trees -->
-          <div class="pt-2 flex justify-end">
-            <button 
-              @click="openVisitTrees(visit)"
-              class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
-            >
-              Edit Tree Data
-            </button>
-          </div>
+          <button v-show="store.allowAddVisits.value" @click="addVisit" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded font-bold transition-colors cursor-pointer text-sm">
+            ＋ Add Visit
+          </button>
         </div>
-        <button v-show="store.allowAddVisits.value" @click="addVisit" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded font-bold transition-colors cursor-pointer text-sm">
-          ＋ Add Visit
-        </button>
       </div>
     </div>
   </div>
@@ -141,7 +143,7 @@ const loadVisits = async () => {
     visits.value = await db.plotVisits
       .where('plot_guid')
       .equals(plot.value.guid)
-      .sortBy('measurement_date');
+      .sortBy('visit_number');
   }
 };
 
@@ -258,7 +260,30 @@ const deleteVisitRecord = async (visit: IPlotVisit) => {
   const confirmed = confirm(`Are you sure you want to delete Visit V${visit.visit_number}? This will delete all tree measurements associated with this visit.`);
   if (!confirmed) return;
 
-  await db.transaction('rw', [db.plotVisits, db.treeMeasurements], async () => {
+  await db.transaction('rw', [db.plotVisits, db.treeMeasurements, db.deletedRecords], async () => {
+    if (visit.OBJECTID || visit.GlobalID) {
+      await db.deletedRecords.put({
+        guid: visit.guid,
+        table_name: 'visit',
+        objectid: visit.OBJECTID,
+        globalid: visit.GlobalID,
+        deleted_date: Date.now()
+      });
+    }
+
+    const measurements = await db.treeMeasurements.where('visit_guid').equals(visit.guid).toArray();
+    for (const meas of measurements) {
+      if (meas.OBJECTID || meas.GlobalID) {
+        await db.deletedRecords.put({
+          guid: meas.guid,
+          table_name: 'measurement',
+          objectid: meas.OBJECTID,
+          globalid: meas.GlobalID,
+          deleted_date: Date.now()
+        });
+      }
+    }
+
     await db.plotVisits.delete(visit.guid);
     await db.treeMeasurements.where('visit_guid').equals(visit.guid).delete();
   });
