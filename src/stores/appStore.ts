@@ -3,8 +3,8 @@ import { ITree, IPlot, IPlotVisit, ITreeMeasurement, ISyncError, db } from '../d
 
 export interface AppState {
   isMobile: boolean;
-  currentView: 'plots' | 'trees' | 'setup' | 'plot_detail' | 'lookups' | 'sync_errors';
-  previousViews: ('plots' | 'trees' | 'setup' | 'plot_detail' | 'lookups' | 'sync_errors')[];
+  currentView: 'plots' | 'trees' | 'settings' | 'sync' | 'plot_detail' | 'lookups' | 'sync_errors';
+  previousViews: ('plots' | 'trees' | 'settings' | 'sync' | 'plot_detail' | 'lookups' | 'sync_errors')[];
   selectedPlot: IPlot | null;
   selectedVisit: IPlotVisit | null;
   priorVisit: IPlotVisit | null;
@@ -91,9 +91,14 @@ export const useAppStore = () => {
     state.value.currentView = 'plots';
   };
   
-  const goToSetup = () => {
+  const goToSettings = () => {
     pushCurrentView();
-    state.value.currentView = 'setup';
+    state.value.currentView = 'settings';
+  };
+
+  const goToSync = () => {
+    pushCurrentView();
+    state.value.currentView = 'sync';
   };
 
   const goToLookups = () => {
@@ -259,7 +264,8 @@ export const useAppStore = () => {
   return {
     goToTrees,
     goToPlots,
-    goToSetup,
+    goToSettings,
+    goToSync,
     goToPlotDetail,
     goToLookups,
     goToSyncErrors,

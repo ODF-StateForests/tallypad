@@ -52,7 +52,7 @@
             <icon-fa-moon-o v-else class="menu-icon" />
           </button>
           <button @click.stop="toggleMenu" class="p-2 rounded menu-item text-xl font-bold" :style="{ color: 'var(--text-primary)' }">
-            <icon-fa-ellipsis-v />
+            <icon-fa7-solid-ellipsis-v />
           </button>
           <div v-if="isMenuOpen" class="kebab-menu" @click.stop>
             <button @click="store.toggleDarkMode()" class="menu-item">
@@ -61,9 +61,14 @@
               <span>{{ store.isDarkMode.value ? 'Light mode' : 'Dark mode' }}</span>
             </button>
 
-            <button class="menu-item" @click="store.goToSetup()">
+            <button class="menu-item" @click="store.goToSettings()">
               <span class="menu-icon"><icon-fa-cog /></span>
-              <span>Setup / Sync</span>
+              <span>Settings</span>
+            </button>
+
+            <button class="menu-item" @click="store.goToSync()">
+              <span class="menu-icon"><icon-material-symbols-cloud-sync/></span>
+              <span>Sync & Login</span>
             </button>
 
             <button class="menu-item" @click="store.goToLookups()">
@@ -165,9 +170,14 @@
       <Trees />
     </template>
 
-    <template v-else-if="store.currentView.value === 'setup'">
-      <!-- Setup View -->
-      <Setup />
+    <template v-else-if="store.currentView.value === 'settings'">
+      <!-- Settings View -->
+      <Settings />
+    </template>
+
+    <template v-else-if="store.currentView.value === 'sync'">
+      <!-- Sync View -->
+      <Sync />
     </template>
 
     <template v-else-if="store.currentView.value === 'lookups'">
@@ -187,7 +197,8 @@ import { ref, onMounted, onUnmounted , onBeforeUnmount, computed, watch } from '
 import { useAppStore } from './stores/appStore';
 import { db, IPlot, IPlotVisit, ITree, ITreeMeasurement, renewDatabase } from './db';
 import Trees from './views/Trees.vue';
-import Setup from './views/Setup.vue';
+import Settings from './views/Settings.vue';
+import Sync from './views/Sync.vue';
 import PlotDetails from './views/PlotDetails.vue';
 import Lookups from './views/Lookups.vue';
 import SyncErrors from './views/SyncErrors.vue';
@@ -374,7 +385,7 @@ onMounted(() => {
         const expiration = Date.now() + (data.expires_in * 1000);
         console.log('Token Expiration: ', expiration)
         store.setEsriAuth(data.access_token, data.username, expiration, data.refresh_token);
-        store.goToSetup();
+        store.goToSync();
         window.history.replaceState({}, document.title, window.location.origin + window.location.pathname);
         localStorage.removeItem('esri_code_verifier');
       } else {

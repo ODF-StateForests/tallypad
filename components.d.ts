@@ -11,6 +11,9 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    IconF7EllipsisV: typeof import('~icons/f7/ellipsis-v')['default']
+    IconFa7SolicEllipsisV: typeof import('~icons/fa/7-solic-ellipsis-v')['default']
+    IconFa7SolidEllipsisV: typeof import('~icons/fa7-solid/ellipsis-v')['default']
     IconFaArrowDown: typeof import('~icons/fa/arrow-down')['default']
     IconFaArrowLeft: typeof import('~icons/fa/arrow-left')['default']
     IconFaArrowRight: typeof import('~icons/fa/arrow-right')['default']
@@ -27,12 +30,15 @@ declare module 'vue' {
     IconFaMoonO: typeof import('~icons/fa/moon-o')['default']
     IconFaPlus: typeof import('~icons/fa/plus')['default']
     IconFaSunO: typeof import('~icons/fa/sun-o')['default']
+    IconFaSync: typeof import('~icons/fa/sync')['default']
     IconFaTrash: typeof import('~icons/fa/trash')['default']
     IconFaTrashO: typeof import('~icons/fa/trash-o')['default']
     IconFaUnlock: typeof import('~icons/fa/unlock')['default']
     IconFaWindowMaximize: typeof import('~icons/fa/window-maximize')['default']
     IconFaWindowMinimize: typeof import('~icons/fa/window-minimize')['default']
     IconFaWrench: typeof import('~icons/fa/wrench')['default']
+    'IconMaterialSymbols:cloudSync': typeof import('~icons/material-symbols/cloud-sync')['default']
+    IconMaterialSymbolsCloudSync: typeof import('~icons/material-symbols/cloud-sync')['default']
     IconTeenyiconsBackspace: typeof import('~icons/teenyicons/backspace')['default']
     IconTeenyiconsBackspaceOutline: typeof import('~icons/teenyicons/backspace-outline')['default']
     IconTeenyiconsBackspaceOutlineIcon: typeof import('~icons/teenyicons/backspace-outline-icon')['default']

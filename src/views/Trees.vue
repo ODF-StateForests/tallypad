@@ -55,7 +55,7 @@
           <icon-fa-unlock v-else class="menu-icon"/>
         </button>
         <button @click.stop="toggleMenu" class="p-1 rounded menu-icon text-xl font-bold min-w-7" :style="{ color: 'var(--text-primary)' }">
-          <icon-fa-ellipsis-v />
+          <icon-fa7-solid-ellipsis-v />
         </button>
 
         <div v-if="isMenuOpen" class="kebab-menu" @click.stop>

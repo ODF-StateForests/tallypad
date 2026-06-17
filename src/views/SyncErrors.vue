@@ -3,7 +3,7 @@
     <!-- Header -->
     <header class="p-4 border-b-2 flex items-center justify-between" :style="{ borderColor: 'var(--border-color)', backgroundColor: 'var(--header-bg)' }">
       <div class="flex items-center">
-        <div @click="store.goToPreviousView()" class="m-0 pr-4 cursor-pointer text-md" title="Back to Setup">
+        <div @click="store.goToPreviousView()" class="m-0 pr-4 cursor-pointer text-md" title="Back">
           <icon-fa-arrow-left />
         </div>
         <h1 class="text-md font-bold">Sync Errors Log</h1>
