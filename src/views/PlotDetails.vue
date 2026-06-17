@@ -63,11 +63,12 @@
               </select>
               
               <button
+                v-show="store.allowDropVisits.value"
                 @click="deleteVisitRecord(visit)"
-                class="text-red-500 hover:text-red-700 font-bold transition-colors cursor-pointer text-lg p-1"
+                class="text-red-500 hover:text-red-700 font-bold transition-colors cursor-pointer text-xs"
                 title="Delete Visit"
               >
-                🗑️
+                <icon-fa-trash-o />
               </button>
             </div>
           </div>
@@ -114,7 +115,7 @@
               @click="openVisitTrees(visit)"
               class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
             >
-              🌲 Edit Tree Data
+              Edit Tree Data
             </button>
           </div>
         </div>

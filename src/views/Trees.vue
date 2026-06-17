@@ -17,7 +17,7 @@
         >
           <div class="swipe-track">
             <div class="swipe-thumb" :style="{ transform: `translateX(${swipeX}px)` }">
-              →
+              <icon-fa-arrow-right class="text-xs" />
             </div>
             <span>Swipe to unlock</span>
           </div>
@@ -89,7 +89,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="(row, rIdx) in rows" :key="rIdx">
+          <tr v-for="(row, rIdx) in rows" :key="rIdx" :class="{ 'error-row': row.hasError }">
             <template v-for="(col, cIdx) in columns" :key="col.key">
               <td v-if="col.visible"
                 :key="col.key"
@@ -132,15 +132,15 @@
 
     <!-- Navigation bar -->
     <div class="p-2 flex justify-between items-center border-b-2" :style="{ borderColor: 'var(--border-color)', backgroundColor: 'var(--keypad-bg)' }">
-      <div class="flex gap-2">
+      <div class="flex gap-1">
         <button @click="addRow" class="nav-btn !text-green-600 !text-sm"><icon-fa-plus /></button>
         <button @click="removeRow" class="nav-btn !text-red-600 !text-sm"><icon-fa-minus /></button>
       </div>
-      <div v-if="store.isMobile.value" class="grid grid-cols-4 gap-0">
-        <button @click="move('up')" class="nav-btn !border-0 !text-4xl" :style="{backgroundColor: 'var(--keypad-bg)'}">⬆️</button>
-        <button @click="move('down')" class="nav-btn !border-0 !text-4xl":style="{backgroundColor: 'var(--keypad-bg)'}">⬇️</button>
-        <button @click="move('left')" class="nav-btn !border-0 !text-4xl" :style="{backgroundColor: 'var(--keypad-bg)'}">⬅️</button>
-        <button @click="move('right')" class="nav-btn !border-0 !text-4xl" :style="{backgroundColor: 'var(--keypad-bg)'}">➡️</button>
+      <div v-if="store.isMobile.value" class="flex gap-1">
+        <button @click="move('up')" class="nav-btn !text-lg" :style="{backgroundColor: 'var(--keypad-bg)'}"><icon-fa-arrow-up /></button>
+        <button @click="move('down')" class="nav-btn !text-lg":style="{backgroundColor: 'var(--keypad-bg)'}"><icon-fa-arrow-down /></button>
+        <button @click="move('left')" class="nav-btn !text-lg" :style="{backgroundColor: 'var(--keypad-bg)'}"><icon-fa-arrow-left /></button>
+        <button @click="move('right')" class="nav-btn !text-lg" :style="{backgroundColor: 'var(--keypad-bg)'}"><icon-fa-arrow-right /></button>
       </div>
     </div>
 
@@ -148,16 +148,16 @@
     <div v-if="store.isMobile.value" class="p-2 h-[33dvh]" :style="{ backgroundColor: 'var(--keypad-bg)' }">
       <div v-if="activeColConfig?.type === 'number'" class="grid grid-cols-4 gap-2 h-full">
         <button v-for="n in [7, 8, 9]" :key="n" @click="pressKey(n)" class="keypad-btn">{{ n }}</button>
-        <button @click="pressKey('back')" class="keypad-btn !bg-orange-500 !text-white">⌫</button>
+        <button @click="pressKey('back')" class="keypad-btn !bg-orange-500 !text-white !text-2xl"><icon-uil-backspace /></button>
 
         <button v-for="n in [4, 5, 6]" :key="n" @click="pressKey(n)" class="keypad-btn">{{ n }}</button>
-        <button @click="move('right')" class="keypad-btn row-span-2 !bg-blue-600 !text-white">ENT</button>
+        <button @click="move('right')" class="keypad-btn row-span-2 !bg-blue-600 !text-white !text-2xl"><icon-uil-enter /></button>
 
         <button v-for="n in [1, 2, 3]" :key="n" @click="pressKey(n)" class="keypad-btn">{{ n }}</button>
 
         <button @click="pressKey(0)" class="keypad-btn col-span-2">0</button>
         <button @click="pressKey('.')" class="keypad-btn">.</button>
-        <button @click="undoEdit" class="keypad-btn !bg-gray-500 !text-white text-sm">UNDO</button>
+        <button @click="undoEdit" class="keypad-btn !bg-gray-500 !text-white !text-lg"><icon-uil-redo /></button>
       </div>
 
       <div v-else-if="activeColConfig?.type === 'select'" class="grid grid-cols-3 gap-3 overflow-y-auto h-full p-1">
@@ -404,7 +404,7 @@ const commitEditCheck = async () => {
   const oldVal = lastCellValue.value;
 
   // Define which attributes are considered "static" tree attributes
-  const staticFields = ['tree_num', 'az', 'hd', 'sp'];
+  const staticFields = ['tree_num', 'az', 'hd', 'sp','ref','sd'];
   
   if (!row.isNew && staticFields.includes(colKey) && String(currentVal) !== String(oldVal)) {
     const reason = prompt(`Reason for changing static attribute "${col.label}" from "${oldVal}" to "${currentVal}"?`);
@@ -447,21 +447,30 @@ const loadRows = async () => {
     .sortBy('measurement_date')
     .then(list => list[0]);
 
-  const [trees, currentMeas, priorMeas] = await Promise.all([
+  const [trees, currentMeas, priorMeas, syncErrors] = await Promise.all([
     db.plotTrees.where('plot_guid').equals(plotGUID).sortBy('az'),
     db.treeMeasurements.where('visit_guid').equals(currentVisit.guid).toArray(),
-    priorVisit ? db.treeMeasurements.where('visit_guid').equals(priorVisit.guid).toArray() : Promise.resolve([])
+    priorVisit ? db.treeMeasurements.where('visit_guid').equals(priorVisit.guid).toArray() : Promise.resolve([]),
+    db.syncErrors.toArray()
   ]);
+
+  const erroredGuids = new Set(syncErrors.map(e => e.record_guid.toUpperCase()));
 
   // Rows to display include prior measurements interleaved with current measurements or empty rows
   const allRows: Row[] = [];
   trees.forEach(tree => {
     const pm = priorVisit ? priorMeas.find(m => m.tree_guid === tree.guid) : undefined;
     if (priorVisit && pm) {
-      allRows.push(treeAndMeasToRow(tree, pm, priorVisit.visit_number, true, false));
+      const pmHasError = erroredGuids.has(tree.guid.toUpperCase()) || (pm ? erroredGuids.has(pm.guid.toUpperCase()) : false);
+      const row = treeAndMeasToRow(tree, pm, priorVisit.visit_number, true, false);
+      row.hasError = pmHasError;
+      allRows.push(row);
     }
     const cm = currentMeas.find(m => m.tree_guid === tree.guid);
-    allRows.push(treeAndMeasToRow(tree, cm, currentVisit.visit_number, false, !pm));
+    const cmHasError = erroredGuids.has(tree.guid.toUpperCase()) || (cm ? erroredGuids.has(cm.guid.toUpperCase()) : false);
+    const row = treeAndMeasToRow(tree, cm, currentVisit.visit_number, false, !pm);
+    row.hasError = cmHasError;
+    allRows.push(row);
   });
 
   rows.value = allRows;
@@ -787,6 +796,8 @@ const removeRow = async () => {
       if (tree) {
         const pm = rows.value.find(r => r.tree_guid === rowToDelete.tree_guid && r.isPrior);
         const updatedRow = treeAndMeasToRow(tree, undefined, store.selectedVisit.value?.visit_number || 1, false, !pm);
+        const treeErrors = await db.syncErrors.where('record_guid').equals(tree.guid).count();
+        updatedRow.hasError = treeErrors > 0;
         rows.value[rowIndex] = updatedRow;
       }
     }
@@ -1159,6 +1170,16 @@ td {
   color: var(--text-primary);
 }
 
+.error-row td {
+  background-color: rgba(239, 68, 68, 0.1) !important;
+  color: #b91c1c !important;
+}
+
+.dark-mode .error-row td {
+  background-color: rgba(239, 68, 68, 0.15) !important;
+  color: #fca5a5 !important;
+}
+
 .freeze-col {
     position: sticky;
     z-index: 1; /* Keeps the column on top of regular scrolling data */
@@ -1208,7 +1229,8 @@ th.freeze-col {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.75rem;
+  /* font-size: 1.75rem; */
+  box-shadow: 0 2px 0 var(--border-color);
 }
 
 .chip {

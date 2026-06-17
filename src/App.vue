@@ -45,14 +45,14 @@
         </div>
         <div class="relative ml-4 gap-2 flex items-center">
           <button v-show="store.hasSyncErrors.value" class="menu-item text-xl" @click="store.goToSyncErrors()">
-            <span class="menu-icon">⚠️</span>
+            <span class="menu-icon"><icon-fa-exclamation-triangle /></span>
           </button>
           <button @click="store.toggleDarkMode()" class="menu-item text-xl">
             <icon-fa-sun-o v-if="store.isDarkMode.value" class="menu-icon" />
             <icon-fa-moon-o v-else class="menu-icon" />
           </button>
           <button @click.stop="toggleMenu" class="p-2 rounded menu-item text-xl font-bold" :style="{ color: 'var(--text-primary)' }">
-            ⁝
+            <icon-fa-ellipsis-v />
           </button>
           <div v-if="isMenuOpen" class="kebab-menu" @click.stop>
             <button @click="store.toggleDarkMode()" class="menu-item">
@@ -62,22 +62,22 @@
             </button>
 
             <button class="menu-item" @click="store.goToSetup()">
-              <span class="menu-icon">⚙️</span>
+              <span class="menu-icon"><icon-fa-cog /></span>
               <span>Setup / Sync</span>
             </button>
 
             <button class="menu-item" @click="store.goToLookups()">
-              <span class="menu-icon">🗂️</span>
+              <span class="menu-icon"><icon-fa-wrench /></span>
               <span>Edit Lookups</span>
             </button>
 
             <button class="menu-item" @click="store.goToSyncErrors()">
-              <span class="menu-icon">⚠️</span>
+              <span class="menu-icon"><icon-fa-exclamation-triangle /></span>
               <span>Sync Errors</span>
             </button>
 
             <button class="menu-item">
-              <span class="menu-icon">ℹ️</span>
+              <span class="menu-icon"><icon-fa-info-circle /></span>
               <span>About</span>
             </button>
             <span class="menu-item">DB Version: {{ dbVersion }}</span>
@@ -99,51 +99,52 @@
         </div>
 
         <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-        <div
-          v-for="plot in filteredPlots"
-          :key="`${plot.plotid}`"
-          class="plot-card"
-          :style="{ backgroundColor: 'var(--cell-bg)', borderColor: 'var(--border-color)' }"
-          @click.stop="store.goToPlotDetail(plot)"
-          >
-          <div class="w-full">
-            <div class="flex justify-between gap-2 items-start">
-              <div>
-                <div class="text-sm opacity-70 tracking-wide">Plot</div>
-                <span class="text-md font-bold mb-1">{{ plot.plotid }}</span>
+          <div
+            v-for="plot in filteredPlots"
+            :key="`${plot.plotid}`"
+            class="plot-card"
+            :style="{ backgroundColor: 'var(--cell-bg)', borderColor: 'var(--border-color)' }"
+            @click.stop="store.goToPlotDetail(plot)"
+            >
+            <div class="w-full">
+              <div class="flex justify-between">
+                <div class="flex flex-col">
+                  <div class="text-xs font-bold opacity-60 tracking-wide">Plot</div>
+                  <span class="text-md font-bold">{{ plot.plotid }}</span>
+                </div>
+                <div class="flex flex-col">
+                  <div class="text-xs font-bold opacity-60 tracking-wide">Coordinates</div>
+                  <span class="text-md font-bold">{{ plot.coords }}</span>
+                </div>
+                <div class="flex flex-col items-center">
+                  <div class="text-xs font-bold opacity-60 tracking-wide">Trees</div>
+                  <span class="text-md font-bold">{{ plot.latestTreeCount }}</span>
+                </div>
               </div>
-              <div>
-                <div class="text-sm opacity-70 tracking-wide">Coordinates</div>
-                <span class="text-sm font-bold">{{ plot.coords }}</span>
+            </div>
+            <div class="flex w-full justify-between gap-2">
+              <div class="flex gap-2 overflow-x-auto p-1 no-scrollbar">
+                <button 
+                  v-for="visit in plot.visits"
+                  :key="visit.guid"
+                  @click.stop="selectVisit(plot, visit)"
+                  class="visit-chip">
+                  V{{ visit.visit_number }}
+                  {{ new Date(visit.measurement_date|| 0).toLocaleDateString()}}
+                </button>
+                <button 
+                  v-show="store.allowAddVisits.value" 
+                  @click.stop="addNewVisit(plot)"
+                  class="visit-chip !bg-green-600/10 !text-green-600 !border-green-600/30 border-dashed">
+                  ＋ Visit
+                </button>
               </div>
-              <div class="items-center">
-                <div class="text-sm opacity-70 tracking-wide">Trees</div>
-                <span class="text-md font-bold mb-1">{{ plot.latestTreeCount }}</span>
+              <div class="flex flex-col items-center">
+                <button class="p-1 text-sm hover:opacity-100 cursor-pointer" @click.stop="waypointToPlot(plot)" title="Google Maps Location"><icon-fa-map-marker /></button>
+                <button class="p-1 text-sm hover:opacity-100 cursor-pointer" @click.stop="navigateToPlot(plot)" title="Google Maps Navigation"><icon-fa-car /></button>
               </div>
-              <div class="flex flex-col">
-                <button class="p-0 text-sm hover:opacity-100 cursor-pointer" @click.stop="waypointToPlot(plot)">⚑</button>
-                <button class="p-0 text-sm hover:opacity-100 cursor-pointer" @click.stop="navigateToPlot(plot)">🚗</button>
-              </div>
-            </div>    
-            
-            <div class="flex gap-2 overflow-x-auto pb-1 no-scrollbar mt-2">
-              <button 
-                v-for="visit in plot.visits"
-                :key="visit.guid"
-                @click.stop="selectVisit(plot, visit)"
-                class="visit-chip">
-                V{{ visit.visit_number }}
-                {{ new Date(visit.measurement_date|| 0).toLocaleDateString()}}
-              </button>
-              <button 
-                v-show="store.allowAddVisits.value" 
-                @click.stop="addNewVisit(plot)"
-                class="visit-chip !bg-green-600/10 !text-green-600 !border-green-600/30 border-dashed">
-                ＋ Visit
-              </button>
             </div>
           </div>
-        </div>
         </div>
 
         <div v-show="store.allowAddPlots.value" class="flex justify-center pt-4">
@@ -190,6 +191,7 @@ import Setup from './views/Setup.vue';
 import PlotDetails from './views/PlotDetails.vue';
 import Lookups from './views/Lookups.vue';
 import SyncErrors from './views/SyncErrors.vue';
+import { isConciseBody, isConditionalExpression } from 'typescript';
 
 const store = useAppStore();
 const dbVersion = ref(0);

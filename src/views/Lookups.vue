@@ -26,87 +26,89 @@
     </div>
 
     <!-- Table Section -->
-    <div class="flex-1 p-6 overflow-y-auto">
-      <div class="border border-[var(--border-color)] rounded-lg overflow-hidden bg-[var(--cell-bg)]">
-        <div class="overflow-x-auto w-full">
-          <table class="w-full border-collapse text-sm text-left">
-            <thead>
-              <tr class="bg-[var(--btn-bg)] border-b border-[var(--border-color)]">
-                <th class="p-3 w-16 text-center">Feature</th>
-                <th class="p-3 w-16 text-center">Code</th>
-                <th class="p-3 w-40">Value</th>
-                <th class="p-3 w-auto">Description</th>
-                <th class="p-3 w-20 text-center">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-if="filteredLookups.length === 0">
-                <td colspan="5" class="p-6 text-center opacity-60 italic">No lookup records found.</td>
-              </tr>
-              <tr v-for="lookup in filteredLookups" :key="lookup.guid" class="border-b border-[var(--border-color)] hover:bg-[var(--btn-bg)]/20">
-                <td class="p-3">
-                  <input
-                    type="text"
-                    maxlength="20"
-                    v-model="lookup.feature"
-                    @change="saveLookup(lookup)"
-                    placeholder="e.g. sp..."
-                    class="w-full text-center bg-transparent border-b border-transparent focus:border-[var(--accent)] outline-none font-semibold"
-                  />
-                </td>
-                <td class="p-3">
-                  <input
-                    type="text"
-                    v-model="lookup.code"
-                    maxlength="10"
-                    @change="saveLookup(lookup)"
-                    placeholder="e.g. DF..."
-                    class="w-full text-center bg-transparent border-b border-transparent focus:border-[var(--accent)] outline-none font-mono"
-                  />
-                </td>
-                <td class="p-3">
-                  <input
-                    type="text"
-                    maxlength="20"
-                    v-model="lookup.value"
-                    @change="saveLookup(lookup)"
-                    placeholder="e.g. Douglas-fir..."
-                    class="w-full bg-transparent border-b border-transparent focus:border-[var(--accent)] outline-none"
-                  />
-                </td>
-                <td class="p-3">
-                  <input
-                    type="text"
-                    maxlength="40"
-                    v-model="lookup.description"
-                    @change="saveLookup(lookup)"
-                    placeholder="Add description..."
-                    class="w-full bg-transparent border-b border-transparent focus:border-[var(--accent)] outline-none"
-                  />
-                </td>
-                <td class="p-3 text-center">
-                  <button
-                    @click="deleteLookup(lookup)"
-                    class="text-red-500 hover:text-red-700 font-bold transition-colors cursor-pointer text-lg p-1"
-                    title="Delete Lookup"
-                  >
-                    🗑️
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+    <div class=" overflow-y-auto">
+      <div class="flex-1 p-6 max-w-1/2">
+        <div class="border border-[var(--border-color)] rounded-lg overflow-hidden bg-[var(--cell-bg)]">
+          <div class="overflow-x-auto w-full">
+            <table class="w-full border-collapse text-sm text-left">
+              <thead>
+                <tr class="bg-[var(--btn-bg)] border-b border-[var(--border-color)]">
+                  <th class="p-3 w-16 text-center">Feature</th>
+                  <th class="p-3 w-16 text-center">Code</th>
+                  <th class="p-3 w-40">Value</th>
+                  <th class="p-3 w-auto">Description</th>
+                  <th class="p-3 w-20 text-center">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-if="filteredLookups.length === 0">
+                  <td colspan="5" class="p-6 text-center opacity-60 italic">No lookup records found.</td>
+                </tr>
+                <tr v-for="lookup in filteredLookups" :key="lookup.guid" class="border-b border-[var(--border-color)] hover:bg-[var(--btn-bg)]/20">
+                  <td class="p-3">
+                    <input
+                      type="text"
+                      maxlength="20"
+                      v-model="lookup.feature"
+                      @change="saveLookup(lookup)"
+                      placeholder="e.g. sp..."
+                      class="w-full text-center bg-transparent border-b border-transparent focus:border-[var(--accent)] outline-none font-semibold"
+                    />
+                  </td>
+                  <td class="p-3">
+                    <input
+                      type="text"
+                      v-model="lookup.code"
+                      maxlength="10"
+                      @change="saveLookup(lookup)"
+                      placeholder="e.g. DF..."
+                      class="w-full text-center bg-transparent border-b border-transparent focus:border-[var(--accent)] outline-none font-mono"
+                    />
+                  </td>
+                  <td class="p-3">
+                    <input
+                      type="text"
+                      maxlength="20"
+                      v-model="lookup.value"
+                      @change="saveLookup(lookup)"
+                      placeholder="e.g. Douglas-fir..."
+                      class="w-full bg-transparent border-b border-transparent focus:border-[var(--accent)] outline-none"
+                    />
+                  </td>
+                  <td class="p-3">
+                    <input
+                      type="text"
+                      maxlength="40"
+                      v-model="lookup.description"
+                      @change="saveLookup(lookup)"
+                      placeholder="Add description..."
+                      class="w-full bg-transparent border-b border-transparent focus:border-[var(--accent)] outline-none"
+                    />
+                  </td>
+                  <td class="p-3 text-center">
+                    <button
+                      @click="deleteLookup(lookup)"
+                      class="text-red-500 hover:text-red-700 font-bold transition-colors cursor-pointer text-xs"
+                      title="Delete Lookup"
+                    >
+                      <icon-fa-trash-o />
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
+        <button @click="addLookup" class="w-full sm:w-auto px-4 py-2 my-2 bg-green-600 hover:bg-green-700 text-white rounded font-bold transition-colors cursor-pointer text-sm">
+          ＋ Add Lookup
+        </button>
       </div>
-      <button @click="addLookup" class="w-full sm:w-auto px-4 py-2 my-2 bg-green-600 hover:bg-green-700 text-white rounded font-bold transition-colors cursor-pointer text-sm">
-        ＋ Add Lookup
-      </button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, watch } from 'vue';
 import { useAppStore } from '../stores/appStore';
 import { db, ILookups } from '../db';
 
@@ -118,6 +120,10 @@ const selectedFeature = ref<string>('');
 const uniqueFeatures = computed(() => {
   const feats = lookups.value.map(l => l.feature).filter(Boolean);
   return Array.from(new Set(feats)).sort();
+});
+
+watch(selectedFeature, () => {
+  loadLookups();
 });
 
 const loadLookups = async () => {
@@ -139,7 +145,6 @@ const saveLookup = async (lookup: ILookups) => {
     return;
   }
   await db.lookups.put(JSON.parse(JSON.stringify(lookup)));
-  await loadLookups();
 };
 
 const addLookup = async () => {
@@ -151,7 +156,7 @@ const addLookup = async () => {
     description: ''
   };
   await db.lookups.put(newLookup);
-  await loadLookups();
+  lookups.value.push(newLookup);
 };
 
 const deleteLookup = async (lookup: ILookups) => {
@@ -160,8 +165,8 @@ const deleteLookup = async (lookup: ILookups) => {
 
   if (lookup.guid) {
     await db.lookups.delete(lookup.guid);
+    lookups.value = lookups.value.filter(l => l.guid !== lookup.guid);
   }
-  await loadLookups();
 };
 
 onMounted(() => {

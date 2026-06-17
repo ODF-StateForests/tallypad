@@ -67,10 +67,10 @@
                 <td class="p-3 text-center">
                   <button
                     @click="deleteError(error.id)"
-                    class="text-red-500 hover:text-red-700 font-bold transition-colors cursor-pointer text-sm p-1"
+                    class="text-red-500 hover:text-red-700 font-bold transition-colors cursor-pointer text-xs"
                     title="Delete error entry"
                   >
-                    🗑️
+                    <icon-fa-trash-o />
                   </button>
                 </td>
               </tr>
