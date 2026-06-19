@@ -175,7 +175,12 @@ export const useAppStore = () => {
       state.value.selectedPlot = val;
     }
   });
-  const selectedVisit = computed(() => state.value.selectedVisit);
+  const selectedVisit = computed({
+    get: () => state.value.selectedVisit,
+    set: (val) => {
+      state.value.selectedVisit = val;
+    }
+  });
   const trees = computed(() => state.value.trees);
   const measurements = computed(() => state.value.measurements);
   const isMobile = computed(() => state.value.isMobile);

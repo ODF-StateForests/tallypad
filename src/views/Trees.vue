@@ -27,7 +27,7 @@
       <div @click="store.goToPreviousView()" class="m-0 pr-4 cursor-pointer text-md">
         <icon-fa-arrow-left />
       </div>
-      <div>
+      <div class="">
         <!-- <h1 class="text-xs uppercase opacity-70 font-bold">Forest Inventory</h1> -->
         <div class="text-md font-bold">
           <div>Plot: {{ store.selectedPlot.value?.plotid }}</div>
@@ -35,19 +35,22 @@
           <div class="flex gap-3">
             <span>Visit: {{ store.selectedVisit.value?.visit_number }}</span>
             <span class="opacity-60 font-normal text-sm">
-              ({{ new Date(store.selectedVisit.value?.measurement_date || 0).toLocaleDateString() }})
+              ({{ store.selectedVisit.value?.measurement_date ? new Date(store.selectedVisit.value?.measurement_date).toLocaleDateString() : 'No visit' }})
             </span>
           </div>
         </div>
       </div>
       <div class="relative ml-auto flex items-center gap-2">
-        <button @click="store.toggleDarkMode()" class="menu-item text-xl">
+        <!-- <button @click="store.toggleDarkMode()" class="menu-item text-xl">
           <icon-fa-sun-o v-if="store.isDarkMode.value" class="menu-icon" />
           <icon-fa-moon-o v-else class="menu-icon" />
-        </button>
-        <button @click="toggleFullscreen" class="menu-item text-xl">
+        </button> -->
+        <!-- <button @click="toggleFullscreen" class="menu-item text-xl">
           <icon-fa-window-minimize v-if="isFullscreen" class="menu-icon"/>
           <icon-fa-window-maximize v-else class="menu-icon"/>
+        </button> -->
+        <button v-if="!visitIsActive" @click="store.goToPlotDetail(store.selectedPlot.value!)" class="menu-item text-xl">
+          <icon-fa-hand-stop-o class="menu-icon !text-red-500"/>
         </button>
         <button v-if="store.isMobile.value" @click="requestWakeLock" class="menu-item text-xl">
           <icon-fa-lock v-if="!isLocked" class="menu-icon"/>
@@ -110,6 +113,7 @@
                     ref="activeSelectRef"
                     v-focus
                     v-model="row[col.key]"
+                    @mousedown="checkVisitActiveMouseDown"
                     @change="saveRow(row)"
                     class="bg-transparent border-0 outline-none text-inherit font-inherit cursor-pointer select-dropdown w-full h-full"
                   >
@@ -180,6 +184,8 @@
         <input
           type="text"
           v-model="rows[activeRow][activeColConfig.key]"
+          @mousedown="checkVisitActiveMouseDown"
+          @keydown="checkVisitActiveKeyDown"
           @change="saveRow(rows[activeRow])"
           @keyup.enter="move('right')"
           class="w-full flex-1 p-3 border border-gray-300 rounded text-lg text-black bg-white"
@@ -199,7 +205,7 @@
 // import MdiStore24Hour from 'virtual:icons/mdi/store-24-hour'
 import { computed, onBeforeUnmount, onMounted, onUnmounted, ref } from 'vue';
 import { useAppStore } from '../stores/appStore';
-import { db, ITree, ITreeMeasurement } from '../db';
+import { db, IPlot, ITree, ITreeMeasurement } from '../db';
 
 const vFocus = {
   mounted: (el: HTMLElement) => {
@@ -272,6 +278,30 @@ const tableBox = ref<HTMLDivElement | null>(null);
 const lastCellValue = ref<any>(null);
 const lastCellRef = ref<{ r: number, c: number } | null>(null);
 const cellNeedsOverwrite = ref(false);
+
+const visitIsActive = ref(false);
+
+const checkVisitActive = () => {
+  if (!visitIsActive.value) {
+    alert("Please set the visit status to Active before editing.");
+    return false;
+  }
+  return true;
+};
+
+const checkVisitActiveMouseDown = (event: MouseEvent) => {
+  if (!visitIsActive.value) {
+    event.preventDefault();
+    alert("Please set the visit status to Active before editing.");
+  }
+};
+
+const checkVisitActiveKeyDown = (event: KeyboardEvent) => {
+  if (!visitIsActive.value) {
+    event.preventDefault();
+    alert("Please set the visit status to Active before editing.");
+  }
+};
 
 const spOptions = ref<string[]>([]);
 const stOptions = ref<string[]>([]);
@@ -437,7 +467,21 @@ const loadRows = async () => {
   if (!store.selectedPlot.value || !store.selectedVisit.value) return;
 
   const plotGUID = store.selectedPlot.value.guid;
+  
+  // Refresh selected visit from database to ensure status is up to date
+  const freshVisit = await db.plotVisits.get(store.selectedVisit.value.guid);
+  if (freshVisit) {
+    store.selectedVisit.value = freshVisit;
+  }
+  
   const currentVisit = store.selectedVisit.value;
+
+  visitIsActive.value = currentVisit.status === 'Active';
+
+  if (currentVisit.measurement_date === null){
+    currentVisit.measurement_date = new Date().getTime();
+  }
+  // console.log(currentVisit.measurement_date)
 
   // Find prior visit as most recent prior to current visit
   const priorVisit = await db.plotVisits
@@ -634,6 +678,7 @@ const move = async (dir: 'up' | 'down' | 'left' | 'right') => {
 };
 
 const pressKey = (key: number | 'back' | '.') => {
+  if (!checkVisitActive()) return;
   const row = rows.value[activeRow.value];
   const colKey = activeColConfig.value.key;
   const current = String(row[colKey] ?? '');
@@ -668,6 +713,7 @@ const pressKey = (key: number | 'back' | '.') => {
 };
 
 const undoEdit = () => {
+  if (!checkVisitActive()) return;
   if (rows.value.length === 0) return;
   const row = rows.value[activeRow.value];
   const colKey = activeColConfig.value.key;
@@ -679,6 +725,7 @@ const undoEdit = () => {
 };
 
 const setVal = (val: string) => {
+  if (!checkVisitActive()) return;
   rows.value[activeRow.value][activeColConfig.value.key] = val;
   // Save the updated row to database
   saveRow(rows.value[activeRow.value]);
@@ -686,6 +733,7 @@ const setVal = (val: string) => {
 };
 
 const addRow = async () => {
+  if (!checkVisitActive()) return;
   if (!store.selectedPlot.value) return;
   
   const nextTreeNum = rows.value.length > 0 
@@ -723,10 +771,7 @@ const addRow = async () => {
 const removeRow = async () => {
   if (rows.value.length === 0) return;
   console.log(store.selectedVisit.value);
-  if (store.selectedVisit.value?.status !== 'Active') {
-    alert("Measurement records can only be deleted if the visit status is 'Active'.");
-    return;
-  }
+  if (!checkVisitActive()) return;
 
   const rowToDelete = rows.value[activeRow.value];
   if (!rowToDelete) return;
@@ -898,6 +943,7 @@ const handleGlobalKeydown = async (event: KeyboardEvent) => {
   if (event.key === ' ' || event.code === 'Space') {
     if (colConfig && colConfig.type === 'select') {
       event.preventDefault();
+      if (!checkVisitActive()) return;
 
       const selectEl = Array.isArray(activeSelectRef.value) 
         ? activeSelectRef.value[0] 
@@ -918,6 +964,15 @@ const handleGlobalKeydown = async (event: KeyboardEvent) => {
 
   if (!colConfig) return;
   const colKey = colConfig.key;
+
+  // Prevent editing keys if visit is not active
+  const isEditingKey = event.key === 'Backspace' || event.key === 'Delete' || event.key === 'Escape' || (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey);
+  if (isEditingKey) {
+    if (!checkVisitActive()) {
+      event.preventDefault();
+      return;
+    }
+  }
 
   if (event.key === 'Backspace') {
     event.preventDefault();

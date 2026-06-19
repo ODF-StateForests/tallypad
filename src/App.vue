@@ -47,14 +47,14 @@
           <button v-show="store.hasSyncErrors.value" class="menu-item text-xl" @click="store.goToSyncErrors()">
             <span class="menu-icon"><icon-fa-exclamation-triangle /></span>
           </button>
-          <button @click="store.toggleDarkMode()" class="menu-item text-xl">
+          <!-- <button @click="store.toggleDarkMode()" class="menu-item text-xl">
             <icon-fa-sun-o v-if="store.isDarkMode.value" class="menu-icon" />
             <icon-fa-moon-o v-else class="menu-icon" />
-          </button>
+          </button> -->
           <button @click.stop="toggleMenu" class="p-2 rounded menu-item text-xl font-bold" :style="{ color: 'var(--text-primary)' }">
             <icon-fa7-solid-ellipsis-v />
           </button>
-          <div v-if="isMenuOpen" class="kebab-menu" @click.stop>orphaned_gps_points
+          <div v-if="isMenuOpen" class="kebab-menu" @click.stop>
             <button @click="store.toggleDarkMode()" class="menu-item">
               <icon-fa-sun-o v-if="store.isDarkMode.value" class="menu-icon" />
               <icon-fa-moon-o v-else class="menu-icon" />

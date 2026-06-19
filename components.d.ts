@@ -19,6 +19,7 @@ declare module 'vue' {
     IconFaCar: typeof import('~icons/fa/car')['default']
     IconFaCog: typeof import('~icons/fa/cog')['default']
     IconFaExclamationTriangle: typeof import('~icons/fa/exclamation-triangle')['default']
+    IconFaHandStopO: typeof import('~icons/fa/hand-stop-o')['default']
     IconFaInfoCircle: typeof import('~icons/fa/info-circle')['default']
     IconFaLock: typeof import('~icons/fa/lock')['default']
     IconFaMapMarker: typeof import('~icons/fa/map-marker')['default']

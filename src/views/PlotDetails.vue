@@ -82,6 +82,7 @@
                 >
                   <option value="Planned">Planned</option>
                   <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
                   <option value="Dropped">Dropped</option>
                   <option value="Completed">Completed</option>
                 </select>
@@ -139,7 +140,7 @@
                 @click="openVisitTrees(visit)"
                 class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
               >
-                Edit Tree Data
+                Tree Data
               </button>
             </div>
           </div>
@@ -296,6 +297,9 @@ const saveVisit = async (visit: IPlotVisit) => {
 
   // Save the updated visit record
   await db.plotVisits.put(JSON.parse(JSON.stringify(visit)));
+  if (store.selectedVisit.value?.guid === visit.guid) {
+    store.selectedVisit.value = visit;
+  }
   await loadVisits();
 };
 
