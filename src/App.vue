@@ -11,31 +11,31 @@
         <div>
           <h1 class="text-md font-bold">Project Plots ({{ filteredPlots.length }})</h1>
           <div class="flex gap-2">
-            <div class="flex">
+            <div class="flex gap-2 max-w-24 border-b border-[var(--border-color)] focus:border-[var(--accent)]">
               <input
-                v-model="statusQuery"
+                v-model="plotIdQuery"
                 type="text"
-                placeholder="Visit Status..."
-                class="text-sm bg-transparent border-b border-[var(--border-color)] focus:border-[var(--accent)] outline-none w-full max-w-[200px] mt-1"
+                placeholder="Plot ID"
+                class="text-sm bg-transparent outline-none w-full mt-1"
               />
               <button 
-                v-if="statusQuery" 
-                @click="statusQuery = ''" 
+                v-if="plotIdQuery" 
+                @click="plotIdQuery = ''" 
                 class="ml-1 px-1 text-sm opacity-50 hover:opacity-100 transition-opacity"
               >
                 ✕
               </button>
             </div>
-            <div class="flex gap-2">
+            <div class="flex gap-2 max-w-24 border-b border-[var(--border-color)] focus:border-[var(--accent)]">
               <input
-                v-model="plotIdQuery"
+                v-model="statusQuery"
                 type="text"
-                placeholder="Filter plot ID..."
-                class="text-sm bg-transparent border-b border-[var(--border-color)] focus:border-[var(--accent)] outline-none w-full max-w-[200px] mt-1"
+                placeholder="Visit Status"
+                class="text-sm bg-transparent outline-none w-full mt-1"
               />
               <button 
-                v-if="plotIdQuery" 
-                @click="plotIdQuery = ''" 
+                v-if="statusQuery" 
+                @click="statusQuery = ''" 
                 class="ml-1 px-1 text-sm opacity-50 hover:opacity-100 transition-opacity"
               >
                 ✕
@@ -68,12 +68,12 @@
 
             <button class="menu-item" @click="store.goToSync()">
               <span class="menu-icon"><icon-material-symbols-cloud-sync/></span>
-              <span>Sync & Login</span>
+              <span>Database</span>
             </button>
 
             <button class="menu-item" @click="store.goToLookups()">
               <span class="menu-icon"><icon-fa-wrench /></span>
-              <span>Edit Lookups</span>
+              <span>Lookups</span>
             </button>
 
             <button class="menu-item" @click="store.goToSyncErrors()">
