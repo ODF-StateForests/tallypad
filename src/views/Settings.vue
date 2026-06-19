@@ -80,6 +80,20 @@
                   <span class="text-xs opacity-60">Enable the "Delete Visit" button in plot details.</span>
                 </div>
               </label>
+
+              <div class="flex flex-col gap-2 p-3 bg-[var(--cell-bg)] rounded-md border border-[var(--border-color)]">
+                <div class="flex flex-col">
+                  <span class="font-bold text-sm">Max Wake Lock Duration (minutes)</span>
+                  <span class="text-xs opacity-60">Automatically release screen lock after this duration to prevent battery drain.</span>
+                </div>
+                <input 
+                  type="number" 
+                  v-model.number="store.maxWakeLockTime.value" 
+                  placeholder="Enter minutes..." 
+                  min="1"
+                  class="p-3 bg-[var(--cell-bg)] border border-[var(--border-color)] rounded-md focus:border-[var(--accent)] outline-none text-sm"
+                />
+              </div>
             </div>
           </section>
         </div>

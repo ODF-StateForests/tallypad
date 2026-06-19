@@ -20,6 +20,7 @@ export interface AppState {
   tokenExpiration: number | null;
   plotServiceUrl: string;
   hasSyncErrors: boolean;
+  maxWakeLockTime: number;
 }
 
 const STORAGE_KEY_USER = 'tallypad_user';
@@ -31,12 +32,20 @@ const STORAGE_KEY_ADD_PLOTS = 'tallypad_add_plots';
 const STORAGE_KEY_ADD_VISITS = 'tallypad_add_visits';
 const STORAGE_KEY_DROP_VISITS = 'tallypad_drop_visits';
 const STORAGE_KEY_PLOT_SERVICE_URL = 'tallypad_plot_service_url';
+const STORAGE_KEY_MAX_WAKELOCK = 'tallypad_max_wakelock';
 
 const getStoredExpiry = (): number | null => {
   const item = localStorage.getItem(STORAGE_KEY_EXPIRY);
   if (!item || item === 'null' || item === 'undefined') return null;
   const num = Number(item);
   return isNaN(num) ? null : num;
+};
+
+const getStoredMaxWakeLock = (): number => {
+  const item = localStorage.getItem(STORAGE_KEY_MAX_WAKELOCK);
+  if (!item || item === 'null' || item === 'undefined') return 15;
+  const num = Number(item);
+  return isNaN(num) || num <= 0 ? 15 : num;
 };
 
 const state = ref<AppState>({
@@ -58,10 +67,12 @@ const state = ref<AppState>({
   tokenExpiration: getStoredExpiry(),
   plotServiceUrl: localStorage.getItem(STORAGE_KEY_PLOT_SERVICE_URL) || import.meta.env.VITE_PLOT_SERVICE_URL,
   hasSyncErrors: false,
+  maxWakeLockTime: getStoredMaxWakeLock(),
 });
 
 export const useAppStore = () => {
   const goToTrees = (plot: IPlot, visit: IPlotVisit, trees: ITree[], measurements: ITreeMeasurement[]) => {
+    pushCurrentView();
     state.value.selectedPlot = plot;
     state.value.selectedVisit = visit;
     state.value.trees = trees;
@@ -158,7 +169,12 @@ export const useAppStore = () => {
   };
 
   const currentView = computed(() => state.value.currentView);
-  const selectedPlot = computed(() => state.value.selectedPlot);
+  const selectedPlot = computed({
+    get: () => state.value.selectedPlot,
+    set: (val) => {
+      state.value.selectedPlot = val;
+    }
+  });
   const selectedVisit = computed(() => state.value.selectedVisit);
   const trees = computed(() => state.value.trees);
   const measurements = computed(() => state.value.measurements);
@@ -182,6 +198,17 @@ export const useAppStore = () => {
     set: (val) => { 
       state.value.userName = val;
       localStorage.setItem(STORAGE_KEY_USER, val);
+    }
+  });
+
+  const maxWakeLockTime = computed({
+    get: () => state.value.maxWakeLockTime,
+    set: (val) => {
+      const num = Number(val);
+      if (!isNaN(num) && num > 0) {
+        state.value.maxWakeLockTime = num;
+        localStorage.setItem(STORAGE_KEY_MAX_WAKELOCK, String(num));
+      }
     }
   });
 
@@ -296,5 +323,6 @@ export const useAppStore = () => {
     checkSyncErrors,
     pushCurrentView,
     goToPreviousView,
+    maxWakeLockTime,
   };
 };

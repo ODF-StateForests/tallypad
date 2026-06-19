@@ -1,4 +1,3 @@
-// TODO: Add a maximum time setting for the wakelock to prevent accidental battery drain
 // TODO: Add n-trees to header
 // TODO: Add local edit time tracking so the database import routine can handle device-device merges cleanly
 // TODO: Show cursor when editing string fields on desktop
@@ -1043,6 +1042,7 @@ onBeforeUnmount(() => {
 // Screen Lock
 const isLocked = ref(false)
 let wakeLock: WakeLockSentinel | null = null
+let wakeLockTimeoutId: any = null
 
 // Swipe variables
 const startX = ref(0)
@@ -1054,9 +1054,20 @@ const threshold = 150 // Minimum swipe distance in px
 const requestWakeLock = async () => {
   if ('wakeLock' in navigator) {
     try {
+      if (wakeLockTimeoutId) {
+        clearTimeout(wakeLockTimeoutId)
+        wakeLockTimeoutId = null
+      }
+      
       wakeLock = await navigator.wakeLock.request('screen')
       swipeX.value = 0
       isLocked.value = true
+      
+      const durationMin = store.maxWakeLockTime.value
+      wakeLockTimeoutId = setTimeout(async () => {
+        await unlockScreen()
+        console.log(`Wake lock automatically released after ${durationMin} minutes.`)
+      }, durationMin * 60 * 1000)
     } catch (err) {
       console.error('Wake lock failed:', err)
     }
@@ -1065,6 +1076,10 @@ const requestWakeLock = async () => {
 
 // Release Wake Lock
 const releaseWakeLock = async () => {
+  if (wakeLockTimeoutId) {
+    clearTimeout(wakeLockTimeoutId)
+    wakeLockTimeoutId = null
+  }
   if (wakeLock) {
     await wakeLock.release()
     wakeLock = null
