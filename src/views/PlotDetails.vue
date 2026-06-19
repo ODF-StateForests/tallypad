@@ -16,17 +16,40 @@
     <div class="p-6 bg-[var(--cell-bg)] border-b-2 space-y-4" :style="{ borderColor: 'var(--border-color)' }">
       <div class="grid grid-cols-2 gap-4" :class="{ 'max-w-1/2': !store.isMobile.value }">
         <div>
-          <span class="opacity-60 block text-xs uppercase font-bold tracking-wider">Established Date</span>
+          <span class="opacity-60 block text-xs font-bold tracking-wider">Established Date</span>
           <span class="font-mono">{{ plot?.established ? new Date(plot.established).toLocaleDateString() : 'N/A' }}</span>
         </div>
         <div>
-          <span class="opacity-60 block text-xs uppercase font-bold tracking-wider">Planned Coordinate</span>
-          <span class="font-mono">{{ plot?.planned_latitude ?? 'N/A' }}, {{ plot?.planned_longitude ?? 'N/A' }}</span>
+          <span class="opacity-60 block text-xs font-bold tracking-wider">Planned Coordinate</span>
+          <span class="font-mono text-xs">
+            {{ plot?.planned_latitude ? plot.planned_latitude.toFixed(6) : 'N/A' }}, {{ plot?.planned_longitude ? plot.planned_longitude.toFixed(6) : 'N/A' }}
+          </span>
         </div>
       </div>
       <div>
-        <span class="opacity-60 block text-xs uppercase font-bold tracking-wider">Remarks</span>
-        <span class="italic block">{{ plot?.remarks || 'No remarks available.' }}</span>
+        <span class="opacity-60 block text-xs font-bold tracking-wider">Remarks</span>
+        <div v-if="!isEditingRemarks" @click="startEditingRemarks" class="cursor-pointer group flex items-center gap-2 max-w-max">
+          <span class="italic block group-hover:text-[var(--accent)]">{{ plot?.remarks || 'No remarks available.' }}</span>
+          <icon-fa-pencil class="opacity-0 group-hover:opacity-100 text-xs text-[var(--accent)] transition-opacity" />
+        </div>
+        <div v-else class="flex flex-col gap-2 mt-1 max-w-lg">
+          <textarea
+            ref="remarksInputRef"
+            v-model="remarksInput"
+            @keyup.esc="cancelEditingRemarks"
+            rows="2"
+            class="bg-[var(--bg-primary)] border border-[var(--border-color)] rounded px-3 py-2 text-sm outline-none focus:border-[var(--accent)] text-[var(--text-primary)] resize-none"
+            placeholder="Enter plot remarks..."
+          ></textarea>
+          <div class="flex gap-2 justify-end">
+            <button @click="cancelEditingRemarks" class="px-3 py-1.5 bg-gray-500 hover:bg-gray-600 text-white rounded font-bold text-xs cursor-pointer transition-colors">
+              Cancel
+            </button>
+            <button @click="saveRemarks" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold text-xs cursor-pointer transition-colors">
+              Save
+            </button>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -130,13 +153,63 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, onMounted, computed, nextTick } from 'vue';
 import { useAppStore } from '../stores/appStore';
 import { db, IPlotVisit } from '../db';
 
 const store = useAppStore();
 const plot = computed(() => store.selectedPlot.value);
 const visits = ref<IPlotVisit[]>([]);
+
+const isEditingRemarks = ref(false);
+const remarksInput = ref('');
+const remarksInputRef = ref<HTMLTextAreaElement | null>(null);
+
+const startEditingRemarks = async () => {
+  remarksInput.value = plot.value?.remarks || '';
+  isEditingRemarks.value = true;
+  await nextTick();
+  remarksInputRef.value?.focus();
+};
+
+const cancelEditingRemarks = () => {
+  isEditingRemarks.value = false;
+};
+
+const saveRemarks = async () => {
+  if (!plot.value) return;
+
+  const oldVal = plot.value.remarks || '';
+  const newVal = remarksInput.value.trim();
+
+  if (newVal === oldVal) {
+    isEditingRemarks.value = false;
+    return;
+  }
+
+  const reason = prompt(`Reason for changing plot remarks from "${oldVal}" to "${newVal}"?`);
+  if (reason === null || reason.trim() === '') {
+    isEditingRemarks.value = false;
+    return;
+  }
+
+  const updatedPlot = { ...plot.value, remarks: newVal };
+  await db.plots.put(JSON.parse(JSON.stringify(updatedPlot)));
+
+  await db.edits.add({
+    guid: crypto.randomUUID(),
+    table_name: 'plot',
+    record_guid: plot.value.guid,
+    field_name: 'remarks',
+    old_value: oldVal,
+    new_value: newVal,
+    reason: reason,
+    edit_date: Date.now()
+  });
+
+  store.selectedPlot.value = updatedPlot;
+  isEditingRemarks.value = false;
+};
 
 const loadVisits = async () => {
   if (plot.value) {
