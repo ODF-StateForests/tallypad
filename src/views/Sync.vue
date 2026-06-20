@@ -322,12 +322,16 @@
     }
 
     try {
-      await syncAll(store, (progress) => {
+      const result = await syncAll(store, (progress) => {
         syncProgressMap.value[progress.step] = {
           status: progress.status,
           message: progress.message
         };
       });
+      if (result.success) {
+        localStorage.setItem('tallypad_last_sync_time', String(Date.now()));
+        await store.checkUnsyncedEdits();
+      }
     } catch (err) {
       console.error('Sync failed:', err);
     } finally {

@@ -210,6 +210,9 @@ const saveRemarks = async () => {
 
   store.selectedPlot.value = updatedPlot;
   isEditingRemarks.value = false;
+  if (!store.hasUnsyncedEdits.value) {
+    store.checkUnsyncedEdits();
+  }
 };
 
 const loadVisits = async () => {
@@ -301,6 +304,9 @@ const saveVisit = async (visit: IPlotVisit) => {
     store.selectedVisit.value = visit;
   }
   await loadVisits();
+  if (!store.hasUnsyncedEdits.value) {
+    store.checkUnsyncedEdits();
+  }
 };
 
 const openVisitTrees = async (visit: IPlotVisit) => {
@@ -331,6 +337,9 @@ const addVisit = async () => {
 
   await db.plotVisits.add(newVisit);
   await loadVisits();
+  if (!store.hasUnsyncedEdits.value) {
+    store.checkUnsyncedEdits();
+  }
 };
 
 const deleteVisitRecord = async (visit: IPlotVisit) => {
@@ -365,6 +374,9 @@ const deleteVisitRecord = async (visit: IPlotVisit) => {
     await db.treeMeasurements.where('visit_guid').equals(visit.guid).delete();
   });
   await loadVisits();
+  if (!store.hasUnsyncedEdits.value) {
+    store.checkUnsyncedEdits();
+  }
 };
 
 onMounted(() => {

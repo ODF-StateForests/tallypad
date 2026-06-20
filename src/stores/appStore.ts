@@ -21,6 +21,7 @@ export interface AppState {
   plotServiceUrl: string;
   hasSyncErrors: boolean;
   maxWakeLockTime: number;
+  hasUnsyncedEdits: boolean;
 }
 
 const STORAGE_KEY_USER = 'tallypad_user';
@@ -68,6 +69,7 @@ const state = ref<AppState>({
   plotServiceUrl: localStorage.getItem(STORAGE_KEY_PLOT_SERVICE_URL) || import.meta.env.VITE_PLOT_SERVICE_URL,
   hasSyncErrors: false,
   maxWakeLockTime: getStoredMaxWakeLock(),
+  hasUnsyncedEdits: false,
 });
 
 export const useAppStore = () => {
@@ -290,8 +292,51 @@ export const useAppStore = () => {
     }
   };
 
-  // Run initial check
+  const hasUnsyncedEdits = computed(() => state.value.hasUnsyncedEdits);
+  const checkUnsyncedEdits = async () => {
+    try {
+      const lastSyncTime = Number(localStorage.getItem('tallypad_last_sync_time') || 0);
+
+      // Check deletedRecords table
+      const deletedCount = await db.deletedRecords.count();
+      if (deletedCount > 0) {
+        state.value.hasUnsyncedEdits = true;
+        console.log('Have pending deletes')
+        return;
+      }
+
+      // Check modified / new records in data tables
+      const hasModified = async (table: any) => {
+        const count = await table
+          .filter((record: any) => !record.OBJECTID || (record.last_edited_date && record.last_edited_date > lastSyncTime))
+          .count();
+        console.log(table.name, count)
+        return count > 0;
+      };
+
+      if (
+        await hasModified(db.plots) ||
+        await hasModified(db.plotVisits) ||
+        await hasModified(db.plotTrees) ||
+        await hasModified(db.treeMeasurements) ||
+        await hasModified(db.plotGpsPoints) ||
+        await hasModified(db.edits)
+      ) {
+        state.value.hasUnsyncedEdits = true;
+        console.log('Have pending edits')
+        return;
+      }
+
+      state.value.hasUnsyncedEdits = false;
+    } catch (err) {
+      console.error('Failed to check unsynced edits:', err);
+      state.value.hasUnsyncedEdits = false;
+    }
+  };
+
+  // Run initial checks
   checkSyncErrors();
+  checkUnsyncedEdits();
 
   return {
     goToTrees,
@@ -329,5 +374,7 @@ export const useAppStore = () => {
     pushCurrentView,
     goToPreviousView,
     maxWakeLockTime,
+    hasUnsyncedEdits,
+    checkUnsyncedEdits,
   };
 };

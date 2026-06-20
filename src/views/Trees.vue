@@ -668,6 +668,9 @@ const saveRow = async (row: Row, forceSave = false) => {
     db.plotTrees.put(tree),
     db.treeMeasurements.put(measurement)
   ]);
+  if (!store.hasUnsyncedEdits.value) {
+    store.checkUnsyncedEdits();
+  }
 };
 
 
@@ -954,6 +957,9 @@ const removeRow = async () => {
 
   captureSnapshot();
   cellNeedsOverwrite.value = true;
+  if (!store.hasUnsyncedEdits.value) {
+    store.checkUnsyncedEdits();
+  }
 };
 
 const updateFullscreenState = () => {

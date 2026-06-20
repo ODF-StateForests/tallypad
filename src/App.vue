@@ -47,10 +47,18 @@
           <button v-show="store.hasSyncErrors.value" class="menu-item text-xl" @click="store.goToSyncErrors()">
             <span class="menu-icon"><icon-fa-exclamation-triangle /></span>
           </button>
-          <!-- <button @click="store.toggleDarkMode()" class="menu-item text-xl">
-            <icon-fa-sun-o v-if="store.isDarkMode.value" class="menu-icon" />
-            <icon-fa-moon-o v-else class="menu-icon" />
-          </button> -->
+          <button 
+            @click="headerSync" 
+            class="menu-item text-xl flex items-center justify-center"
+            :title="syncStatusTooltip"
+            :disabled="isSyncingHeader"
+          >
+            <span class="menu-icon flex items-center">
+              <icon-material-symbols-sync v-if="isSyncingHeader" class="animate-spin text-blue-500" />
+              <icon-material-symbols-cloud-upload v-else-if="store.hasUnsyncedEdits.value" class="text-orange-500" />
+              <icon-material-symbols-cloud-done v-else class="text-green-500 opacity-60" />
+            </span>
+          </button>
           <button @click.stop="toggleMenu" class="p-2 rounded menu-item text-xl font-bold" :style="{ color: 'var(--text-primary)' }">
             <icon-fa7-solid-ellipsis-v />
           </button>
@@ -197,6 +205,7 @@
 import { ref, onMounted, onUnmounted , onBeforeUnmount, computed, watch } from 'vue';
 import { useAppStore } from './stores/appStore';
 import { db, IPlot, IPlotVisit, ITree, ITreeMeasurement, renewDatabase } from './db';
+import { syncAll } from './sync_agol';
 import Trees from './views/Trees.vue';
 import Settings from './views/Settings.vue';
 import Sync from './views/Sync.vue';
@@ -207,6 +216,42 @@ import { isConciseBody, isConditionalExpression } from 'typescript';
 
 const store = useAppStore();
 const dbVersion = ref(0);
+
+const isSyncingHeader = ref(false);
+
+const syncStatusTooltip = computed(() => {
+  if (isSyncingHeader.value) return 'Syncing with ESRI ArcGIS Online...';
+  if (store.hasUnsyncedEdits.value) return 'Local edits pending sync. Click to sync now.';
+  return 'All local edits synced with server.';
+});
+
+const headerSync = async () => {
+  if (isSyncingHeader.value) return;
+
+  if (!store.esriToken.value) {
+    alert("No ESRI login session active. Please log in from the Sync & Login view first.");
+    store.goToSync();
+    return;
+  }
+
+  isSyncingHeader.value = true;
+  try {
+    const result = await syncAll(store);
+    if (result.success) {
+      localStorage.setItem('tallypad_last_sync_time', String(Date.now()));
+      await store.checkUnsyncedEdits();
+      // alert("Sync completed successfully!");
+    } else {
+      const errorMsg = result.errors ? Object.values(result.errors).join(', ') : 'Unknown error';
+      alert(`Sync failed: ${errorMsg}`);
+    }
+  } catch (err) {
+    console.error('Header sync failed:', err);
+    alert('Sync failed. Please check your internet connection.');
+  } finally {
+    isSyncingHeader.value = false;
+  }
+};
 const isMenuOpen = ref(false);
 
 
@@ -225,6 +270,7 @@ watch(
     if (newView === 'plots') {
       loadPlots();
     }
+    store.checkUnsyncedEdits();
   }
 );
 
@@ -300,6 +346,9 @@ const addNewPlot = () => {
 
   db.plots.add(newPlot).then(() => {
     loadPlots();
+    if (!store.hasUnsyncedEdits.value) {
+      store.checkUnsyncedEdits();
+    }
   });
 };
 
