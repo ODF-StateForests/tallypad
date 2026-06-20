@@ -271,6 +271,7 @@ interface Row extends Record<RowKey, any> {
   isPrior: boolean;
   isNew: boolean;
   hasError: boolean;
+  sortGroup: number;
 }
 
 const store = useAppStore();
@@ -339,6 +340,7 @@ const updateFrozenOffsets = () => {
 const columns = computed<Column[]>((): Column[] => [
   // { label: 'MSMT ID', key: 'measurement_guid', type: 'string', visible: false , freeze: false },
   // { label: 'Plot ID', key: 'plot_guid', type: 'string', visible: false, freeze: false},
+  { label: 'G', key: 'sortGroup', type: 'number', visible: true, freeze: false},
   { label: 'TR', key: 'tree_num', type: 'number', visible: true, freeze: false},
   { label: 'V', key: 'visit_number', type: 'number', visible: true, freeze: false},
   { label: 'AZ', key: 'az', type: 'number', visible: true, freeze: true},
@@ -376,7 +378,7 @@ const columns = computed<Column[]>((): Column[] => [
 const rows = ref<Row[]>([]);
 
 // The row displayed to the user combines tree and measure values
-const treeAndMeasToRow = (tree: ITree, meas: ITreeMeasurement | undefined, visitNum: number, isPrior: boolean, isNew: boolean, hasError: boolean): Row => ({
+const treeAndMeasToRow = (tree: ITree, meas: ITreeMeasurement | undefined, visitNum: number, isPrior: boolean, isNew: boolean, hasError: boolean, sortGroup: number): Row => ({
   visit_guid: meas?.visit_guid,
   plot_guid: tree.plot_guid,
   tree_guid: tree.guid,
@@ -415,7 +417,8 @@ const treeAndMeasToRow = (tree: ITree, meas: ITreeMeasurement | undefined, visit
   remarks: meas?.remarks ?? '',
   isPrior,
   isNew,
-  hasError
+  hasError,
+  sortGroup
 });
 
 const captureSnapshot = () => {
@@ -521,20 +524,61 @@ const loadRows = async () => {
 
   // Rows to display include prior measurements interleaved with current measurements or empty rows
   const allRows: Row[] = [];
+  // // Capture seedlings and saplings and append them to the end
+  // const tailRows: Row[] = [];
+  // trees.forEach(tree => {
+  //   const pm = priorVisit ? priorMeas.find(m => m.tree_guid === tree.guid) : undefined;
+  //   let isTailRow = false;
+  //   if (priorVisit && pm) {
+  //     const pmHasError = erroredGuids.has(tree.guid.toUpperCase()) || (pm ? erroredGuids.has(pm.guid.toUpperCase()) : false);
+  //     const row = treeAndMeasToRow(tree, pm, priorVisit.visit_number, true, false, pmHasError);
+  //     if (row.az === null || row.dbh<5.5){
+  //       isTailRow = true;
+  //       tailRows.push(row);
+  //     } else {
+  //       isTailRow = false;
+  //       allRows.push(row);
+  //     }
+  //   }
+  //   const cm = currentMeas.find(m => m.tree_guid === tree.guid);
+  //   const cmHasError = erroredGuids.has(tree.guid.toUpperCase()) || (cm ? erroredGuids.has(cm.guid.toUpperCase()) : false);
+  //   const row = treeAndMeasToRow(tree, cm, currentVisit.visit_number, false, !pm, cmHasError);
+  //   if (isTailRow){
+  //     tailRows.push(row);
+  //   } else {
+  //     allRows.push(row);
+  //   }
+  // });
+
+  // // Sort by tree number and visit number
+  // tailRows.sort((a,b) => a.tree_num-b.tree_num || a.visit_number - b.visit_number);
+
+  // rows.value = [...allRows, ...tailRows];
+
   trees.forEach(tree => {
     const pm = priorVisit ? priorMeas.find(m => m.tree_guid === tree.guid) : undefined;
+    let sortGroup = 1;
     if (priorVisit && pm) {
       const pmHasError = erroredGuids.has(tree.guid.toUpperCase()) || (pm ? erroredGuids.has(pm.guid.toUpperCase()) : false);
-      const row = treeAndMeasToRow(tree, pm, priorVisit.visit_number, true, false, pmHasError);
+      if (tree.az == null || pm.dbh<5.5){
+        sortGroup = 2;
+      } else {
+        sortGroup = 1;
+      }
+      const row = treeAndMeasToRow(tree, pm, priorVisit.visit_number, true, false, pmHasError, sortGroup);
       allRows.push(row);
     }
     const cm = currentMeas.find(m => m.tree_guid === tree.guid);
     const cmHasError = erroredGuids.has(tree.guid.toUpperCase()) || (cm ? erroredGuids.has(cm.guid.toUpperCase()) : false);
-    const row = treeAndMeasToRow(tree, cm, currentVisit.visit_number, false, !pm, cmHasError);
+    const row = treeAndMeasToRow(tree, cm, currentVisit.visit_number, false, !pm, cmHasError, sortGroup);
     allRows.push(row);
   });
 
+  // Sort by tree number and visit number
+  allRows.sort((a,b) => a.sortGroup-b.sortGroup || a.az-b.az || a.tree_num-b.tree_num || a.visit_number - b.visit_number );
+
   rows.value = allRows;
+  
   
   // Set initial active row to first editable row
   activeRow.value = allRows.findIndex(r => !r.isPrior);
