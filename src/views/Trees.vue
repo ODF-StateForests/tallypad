@@ -340,7 +340,7 @@ const updateFrozenOffsets = () => {
 const columns = computed<Column[]>((): Column[] => [
   // { label: 'MSMT ID', key: 'measurement_guid', type: 'string', visible: false , freeze: false },
   // { label: 'Plot ID', key: 'plot_guid', type: 'string', visible: false, freeze: false},
-  { label: 'G', key: 'sortGroup', type: 'number', visible: true, freeze: false},
+  // { label: 'G', key: 'sortGroup', type: 'number', visible: true, freeze: false},
   { label: 'TR', key: 'tree_num', type: 'number', visible: true, freeze: false},
   { label: 'V', key: 'visit_number', type: 'number', visible: true, freeze: false},
   { label: 'AZ', key: 'az', type: 'number', visible: true, freeze: true},
@@ -570,6 +570,13 @@ const loadRows = async () => {
     }
     const cm = currentMeas.find(m => m.tree_guid === tree.guid);
     const cmHasError = erroredGuids.has(tree.guid.toUpperCase()) || (cm ? erroredGuids.has(cm.guid.toUpperCase()) : false);
+    if (!pm) {
+      if (tree.az == null || (cm?.dbh ?? 0)<5.5){
+        sortGroup = 2;
+      } else {
+        sortGroup = 1;
+      }
+    }
     const row = treeAndMeasToRow(tree, cm, currentVisit.visit_number, false, !pm, cmHasError, sortGroup);
     allRows.push(row);
   });
