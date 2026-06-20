@@ -127,6 +127,7 @@
                 </div>
               </div>
             </div>
+            <!-- <span>Visits</span> -->
             <div class="flex w-full justify-between gap-2">
               <div class="flex gap-2 overflow-x-auto p-1 no-scrollbar">
                 <button 
@@ -145,8 +146,8 @@
                 </button>
               </div>
               <div class="flex flex-col items-center">
-                <button class="p-1 text-sm hover:opacity-100 cursor-pointer" @click.stop="waypointToPlot(plot)" title="Google Maps Location"><icon-fa-map-marker /></button>
-                <button class="p-1 text-sm hover:opacity-100 cursor-pointer" @click.stop="navigateToPlot(plot)" title="Google Maps Navigation"><icon-fa-car /></button>
+                <button class="p-1 text-lg cursor-pointer" @click.stop="waypointToPlot(plot)" title="Google Maps Location"><icon-fa-map-marker /></button>
+                <!-- <button class="p-1 text-sm hover:opacity-100 cursor-pointer" @click.stop="navigateToPlot(plot)" title="Google Maps Navigation"><icon-fa-car /></button> -->
               </div>
             </div>
           </div>

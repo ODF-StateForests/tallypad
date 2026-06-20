@@ -1,5 +1,4 @@
 // TODO: Add n-trees to header
-// TODO: Add local edit time tracking so the database import routine can handle device-device merges cleanly
 // TODO: Show cursor when editing string fields on desktop
 
 <template>
@@ -61,6 +60,10 @@
         </button>
 
         <div v-if="isMenuOpen" class="kebab-menu" @click.stop>
+          <button @click="store.goToPlotDetail(store.selectedPlot.value!)" class="menu-item">
+            <icon-fa-list-alt class="menu-icon"/>
+            <span>Plot Details</span>
+          </button>
           <button @click="toggleFullscreen" class="menu-item">
             <icon-fa-window-minimize v-if="isFullscreen" class="menu-icon"/>
             <icon-fa-window-maximize v-else class="menu-icon"/>
@@ -158,7 +161,8 @@
 
         <button v-for="n in [1, 2, 3]" :key="n" @click="pressKey(n)" class="keypad-btn">{{ n }}</button>
 
-        <button @click="pressKey(0)" class="keypad-btn col-span-2">0</button>
+        <button @click="pressKey('/')" class="keypad-btn col-span-1">/</button>
+        <button @click="pressKey(0)" class="keypad-btn col-span-1">0</button>
         <button @click="pressKey('.')" class="keypad-btn">.</button>
         <button @click="undoEdit" class="keypad-btn !bg-gray-500 !text-white !text-lg"><icon-uil-redo /></button>
       </div>
@@ -434,6 +438,20 @@ const commitEditCheck = async () => {
   const currentVal = row[colKey];
   const oldVal = lastCellValue.value;
 
+  // Fraction evaluation and saving for fc and cr columns when navigating out
+  if ((colKey === 'fc' || colKey === 'cr') && String(currentVal) !== String(oldVal)) {
+    if (typeof currentVal === 'string' && currentVal.includes('/')) {
+      let fractionVal = evaluateFraction(currentVal);
+      if (fractionVal !== null) {
+        if (colKey === 'cr'){
+          fractionVal = 100 - fractionVal
+        }
+        row[colKey] = fractionVal;
+      }
+    }
+    await saveRow(row, true);
+  }
+
   // Define which attributes are considered "static" tree attributes
   const staticFields = ['tree_num', 'az', 'hd', 'sp','ref','sd'];
   
@@ -536,8 +554,20 @@ const toNumOrUndef = (val: any) => {
   return Number.isNaN(n) ? undefined : n;
 };
 
+const evaluateFraction = (valStr: string): number | null => {
+  const parts = valStr.split('/');
+  if (parts.length === 2) {
+    const num = Number(parts[0].trim());
+    const den = Number(parts[1].trim());
+    if (!isNaN(num) && !isNaN(den) && den !== 0) {
+      return Math.round((num / den) * 100);
+    }
+  }
+  return null;
+};
+
 // Save a row to database
-const saveRow = async (row: Row) => {
+const saveRow = async (row: Row, forceSave = false) => {
   if (row.isPrior) return;
 
   const tree: ITree = {
@@ -677,7 +707,7 @@ const move = async (dir: 'up' | 'down' | 'left' | 'right') => {
   scrollActiveIntoView();
 };
 
-const pressKey = (key: number | 'back' | '.') => {
+const pressKey = (key: number | 'back' | '.' | '/') => {
   if (!checkVisitActive()) return;
   const row = rows.value[activeRow.value];
   const colKey = activeColConfig.value.key;
@@ -686,6 +716,10 @@ const pressKey = (key: number | 'back' | '.') => {
   // lastCellValue.value = current;
   console.log(lastCellValue.value);
 
+  if (key === '/') {
+    // Only allow '/' on 'fc' and 'cr' columns
+    if (colKey !== 'fc' && colKey !== 'cr') return;
+  }
 
   if (key === 'back') {
     if (activeColConfig.value.type === 'number') {
@@ -704,6 +738,7 @@ const pressKey = (key: number | 'back' | '.') => {
       cellNeedsOverwrite.value = false;
     } else {
       if (key === '.' && current.includes('.')) return;
+      if (key === '/' && current.includes('/')) return;
       row[colKey] = current + String(key);
     }
   }
@@ -1007,7 +1042,9 @@ const handleGlobalKeydown = async (event: KeyboardEvent) => {
 
   if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
     if (colConfig.type === 'number') {
-      if (/[\d\.]/.test(event.key)) {
+      const isFcOrCr = colConfig.key === 'fc' || colConfig.key === 'cr';
+      const allowedRegex = isFcOrCr ? /[\d\.\/]/ : /[\d\.]/;
+      if (allowedRegex.test(event.key)) {
         event.preventDefault();
         const current = String(row[colKey] ?? '');
         if (cellNeedsOverwrite.value) {
@@ -1015,6 +1052,7 @@ const handleGlobalKeydown = async (event: KeyboardEvent) => {
           cellNeedsOverwrite.value = false;
         } else {
           if (event.key === '.' && current.includes('.')) return;
+          if (event.key === '/' && current.includes('/')) return;
           row[colKey] = current + event.key;
         }
         await saveRow(row);
@@ -1087,7 +1125,8 @@ onMounted(async () => {
   await loadRows();
 });
 
-onBeforeUnmount(() => {
+onBeforeUnmount(async () => {
+  await commitEditCheck();
   document.removeEventListener('fullscreenchange', updateFullscreenState);
   document.removeEventListener('click', closeMenu);
   document.removeEventListener('keydown', handleGlobalKeydown);

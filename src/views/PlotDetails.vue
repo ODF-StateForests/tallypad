@@ -14,14 +14,14 @@
 
     <!-- Plot Info Summary -->
     <div class="p-6 bg-[var(--cell-bg)] border-b-2 space-y-4" :style="{ borderColor: 'var(--border-color)' }">
-      <div class="grid grid-cols-2 gap-4" :class="{ 'max-w-1/2': !store.isMobile.value }">
-        <div>
+      <div class="flex justify-between gap-4" :class="{ 'max-w-1/2': !store.isMobile.value }">
+        <div class="">
           <span class="opacity-60 block text-xs font-bold tracking-wider">Established Date</span>
           <span class="font-mono">{{ plot?.established ? new Date(plot.established).toLocaleDateString() : 'N/A' }}</span>
         </div>
         <div>
           <span class="opacity-60 block text-xs font-bold tracking-wider">Planned Coordinate</span>
-          <span class="font-mono text-xs">
+          <span class="font-mono text-sm">
             {{ plot?.planned_latitude ? plot.planned_latitude.toFixed(6) : 'N/A' }}, {{ plot?.planned_longitude ? plot.planned_longitude.toFixed(6) : 'N/A' }}
           </span>
         </div>

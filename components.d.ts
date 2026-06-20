@@ -21,6 +21,7 @@ declare module 'vue' {
     IconFaExclamationTriangle: typeof import('~icons/fa/exclamation-triangle')['default']
     IconFaHandStopO: typeof import('~icons/fa/hand-stop-o')['default']
     IconFaInfoCircle: typeof import('~icons/fa/info-circle')['default']
+    IconFaListAlt: typeof import('~icons/fa/list-alt')['default']
     IconFaLock: typeof import('~icons/fa/lock')['default']
     IconFaMapMarker: typeof import('~icons/fa/map-marker')['default']
     IconFaMinus: typeof import('~icons/fa/minus')['default']
