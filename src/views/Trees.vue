@@ -1,6 +1,4 @@
-// TODO: Add a maximum time setting for the wakelock to prevent accidental battery drain
 // TODO: Add n-trees to header
-// TODO: Add local edit time tracking so the database import routine can handle device-device merges cleanly
 // TODO: Show cursor when editing string fields on desktop
 
 <template>
@@ -17,7 +15,7 @@
         >
           <div class="swipe-track">
             <div class="swipe-thumb" :style="{ transform: `translateX(${swipeX}px)` }">
-              →
+              <icon-fa-arrow-right class="text-xs" />
             </div>
             <span>Swipe to unlock</span>
           </div>
@@ -25,10 +23,10 @@
       </div>
     </div>
     <header class="p-2 border-b-2 flex items-center" :style="{ borderColor: 'var(--border-color)', backgroundColor: 'var(--header-bg)' }">
-      <div @click="store.goToPreviousView()" class="m-0 pr-4 cursor-pointer text-xl">
+      <div @click="store.goToPreviousView()" class="m-0 pr-4 cursor-pointer text-md">
         <icon-fa-arrow-left />
       </div>
-      <div>
+      <div class="">
         <!-- <h1 class="text-xs uppercase opacity-70 font-bold">Forest Inventory</h1> -->
         <div class="text-md font-bold">
           <div>Plot: {{ store.selectedPlot.value?.plotid }}</div>
@@ -36,29 +34,36 @@
           <div class="flex gap-3">
             <span>Visit: {{ store.selectedVisit.value?.visit_number }}</span>
             <span class="opacity-60 font-normal text-sm">
-              ({{ new Date(store.selectedVisit.value?.measurement_date || 0).toLocaleDateString() }})
+              ({{ store.selectedVisit.value?.measurement_date ? new Date(store.selectedVisit.value?.measurement_date).toLocaleDateString() : 'No visit' }})
             </span>
           </div>
         </div>
       </div>
       <div class="relative ml-auto flex items-center gap-2">
-        <button @click="store.toggleDarkMode()" class="menu-item text-xl">
+        <!-- <button @click="store.toggleDarkMode()" class="menu-item text-xl">
           <icon-fa-sun-o v-if="store.isDarkMode.value" class="menu-icon" />
           <icon-fa-moon-o v-else class="menu-icon" />
-        </button>
-        <button @click="toggleFullscreen" class="menu-item text-xl">
+        </button> -->
+        <!-- <button @click="toggleFullscreen" class="menu-item text-xl">
           <icon-fa-window-minimize v-if="isFullscreen" class="menu-icon"/>
           <icon-fa-window-maximize v-else class="menu-icon"/>
+        </button> -->
+        <button v-if="!visitIsActive" @click="store.goToPlotDetail(store.selectedPlot.value!)" class="menu-item text-xl">
+          <icon-fa-hand-stop-o class="menu-icon !text-red-500"/>
         </button>
         <button v-if="store.isMobile.value" @click="requestWakeLock" class="menu-item text-xl">
           <icon-fa-lock v-if="!isLocked" class="menu-icon"/>
           <icon-fa-unlock v-else class="menu-icon"/>
         </button>
         <button @click.stop="toggleMenu" class="p-1 rounded menu-icon text-xl font-bold min-w-7" :style="{ color: 'var(--text-primary)' }">
-          <icon-fa-ellipsis-v />
+          <icon-fa7-solid-ellipsis-v />
         </button>
 
         <div v-if="isMenuOpen" class="kebab-menu" @click.stop>
+          <button @click="store.goToPlotDetail(store.selectedPlot.value!)" class="menu-item">
+            <icon-fa-list-alt class="menu-icon"/>
+            <span>Plot Details</span>
+          </button>
           <button @click="toggleFullscreen" class="menu-item">
             <icon-fa-window-minimize v-if="isFullscreen" class="menu-icon"/>
             <icon-fa-window-maximize v-else class="menu-icon"/>
@@ -89,7 +94,7 @@
           </tr>
         </thead>
         <tbody>
-          <tr v-for="(row, rIdx) in rows" :key="rIdx">
+          <tr v-for="(row, rIdx) in rows" :key="rIdx" :class="{ 'error-row': row.hasError }">
             <template v-for="(col, cIdx) in columns" :key="col.key">
               <td v-if="col.visible"
                 :key="col.key"
@@ -111,6 +116,7 @@
                     ref="activeSelectRef"
                     v-focus
                     v-model="row[col.key]"
+                    @mousedown="checkVisitActiveMouseDown"
                     @change="saveRow(row)"
                     class="bg-transparent border-0 outline-none text-inherit font-inherit cursor-pointer select-dropdown w-full h-full"
                   >
@@ -132,15 +138,15 @@
 
     <!-- Navigation bar -->
     <div class="p-2 flex justify-between items-center border-b-2" :style="{ borderColor: 'var(--border-color)', backgroundColor: 'var(--keypad-bg)' }">
-      <div class="flex gap-2">
+      <div class="flex gap-1">
         <button @click="addRow" class="nav-btn !text-green-600 !text-sm"><icon-fa-plus /></button>
         <button @click="removeRow" class="nav-btn !text-red-600 !text-sm"><icon-fa-minus /></button>
       </div>
-      <div v-if="store.isMobile.value" class="grid grid-cols-4 gap-0">
-        <button @click="move('up')" class="nav-btn !border-0 !text-4xl" :style="{backgroundColor: 'var(--keypad-bg)'}">⬆️</button>
-        <button @click="move('down')" class="nav-btn !border-0 !text-4xl":style="{backgroundColor: 'var(--keypad-bg)'}">⬇️</button>
-        <button @click="move('left')" class="nav-btn !border-0 !text-4xl" :style="{backgroundColor: 'var(--keypad-bg)'}">⬅️</button>
-        <button @click="move('right')" class="nav-btn !border-0 !text-4xl" :style="{backgroundColor: 'var(--keypad-bg)'}">➡️</button>
+      <div v-if="store.isMobile.value" class="flex gap-1">
+        <button @click="move('up')" class="nav-btn !text-lg" :style="{backgroundColor: 'var(--keypad-bg)'}"><icon-fa-arrow-up /></button>
+        <button @click="move('down')" class="nav-btn !text-lg":style="{backgroundColor: 'var(--keypad-bg)'}"><icon-fa-arrow-down /></button>
+        <button @click="move('left')" class="nav-btn !text-lg" :style="{backgroundColor: 'var(--keypad-bg)'}"><icon-fa-arrow-left /></button>
+        <button @click="move('right')" class="nav-btn !text-lg" :style="{backgroundColor: 'var(--keypad-bg)'}"><icon-fa-arrow-right /></button>
       </div>
     </div>
 
@@ -148,16 +154,17 @@
     <div v-if="store.isMobile.value" class="p-2 h-[33dvh]" :style="{ backgroundColor: 'var(--keypad-bg)' }">
       <div v-if="activeColConfig?.type === 'number'" class="grid grid-cols-4 gap-2 h-full">
         <button v-for="n in [7, 8, 9]" :key="n" @click="pressKey(n)" class="keypad-btn">{{ n }}</button>
-        <button @click="pressKey('back')" class="keypad-btn !bg-orange-500 !text-white">⌫</button>
+        <button @click="pressKey('back')" class="keypad-btn !bg-orange-500 !text-white !text-2xl"><icon-uil-backspace /></button>
 
         <button v-for="n in [4, 5, 6]" :key="n" @click="pressKey(n)" class="keypad-btn">{{ n }}</button>
-        <button @click="move('right')" class="keypad-btn row-span-2 !bg-blue-600 !text-white">ENT</button>
+        <button @click="move('right')" class="keypad-btn row-span-2 !bg-blue-600 !text-white !text-2xl"><icon-uil-enter /></button>
 
         <button v-for="n in [1, 2, 3]" :key="n" @click="pressKey(n)" class="keypad-btn">{{ n }}</button>
 
-        <button @click="pressKey(0)" class="keypad-btn col-span-2">0</button>
+        <button @click="pressKey('/')" class="keypad-btn col-span-1">/</button>
+        <button @click="pressKey(0)" class="keypad-btn col-span-1">0</button>
         <button @click="pressKey('.')" class="keypad-btn">.</button>
-        <button @click="undoEdit" class="keypad-btn !bg-gray-500 !text-white text-sm">UNDO</button>
+        <button @click="undoEdit" class="keypad-btn !bg-gray-500 !text-white !text-lg"><icon-uil-redo /></button>
       </div>
 
       <div v-else-if="activeColConfig?.type === 'select'" class="grid grid-cols-3 gap-3 overflow-y-auto h-full p-1">
@@ -181,6 +188,8 @@
         <input
           type="text"
           v-model="rows[activeRow][activeColConfig.key]"
+          @mousedown="checkVisitActiveMouseDown"
+          @keydown="checkVisitActiveKeyDown"
           @change="saveRow(rows[activeRow])"
           @keyup.enter="move('right')"
           class="w-full flex-1 p-3 border border-gray-300 rounded text-lg text-black bg-white"
@@ -200,7 +209,7 @@
 // import MdiStore24Hour from 'virtual:icons/mdi/store-24-hour'
 import { computed, onBeforeUnmount, onMounted, onUnmounted, ref } from 'vue';
 import { useAppStore } from '../stores/appStore';
-import { db, ITree, ITreeMeasurement } from '../db';
+import { db, IPlot, ITree, ITreeMeasurement } from '../db';
 
 const vFocus = {
   mounted: (el: HTMLElement) => {
@@ -261,6 +270,8 @@ type RowKey =
 interface Row extends Record<RowKey, any> {
   isPrior: boolean;
   isNew: boolean;
+  hasError: boolean;
+  sortGroup: number;
 }
 
 const store = useAppStore();
@@ -272,6 +283,30 @@ const tableBox = ref<HTMLDivElement | null>(null);
 const lastCellValue = ref<any>(null);
 const lastCellRef = ref<{ r: number, c: number } | null>(null);
 const cellNeedsOverwrite = ref(false);
+
+const visitIsActive = ref(false);
+
+const checkVisitActive = () => {
+  if (!visitIsActive.value) {
+    alert("Please set the visit status to Active before editing.");
+    return false;
+  }
+  return true;
+};
+
+const checkVisitActiveMouseDown = (event: MouseEvent) => {
+  if (!visitIsActive.value) {
+    event.preventDefault();
+    alert("Please set the visit status to Active before editing.");
+  }
+};
+
+const checkVisitActiveKeyDown = (event: KeyboardEvent) => {
+  if (!visitIsActive.value) {
+    event.preventDefault();
+    alert("Please set the visit status to Active before editing.");
+  }
+};
 
 const spOptions = ref<string[]>([]);
 const stOptions = ref<string[]>([]);
@@ -305,6 +340,7 @@ const updateFrozenOffsets = () => {
 const columns = computed<Column[]>((): Column[] => [
   // { label: 'MSMT ID', key: 'measurement_guid', type: 'string', visible: false , freeze: false },
   // { label: 'Plot ID', key: 'plot_guid', type: 'string', visible: false, freeze: false},
+  // { label: 'G', key: 'sortGroup', type: 'number', visible: true, freeze: false},
   { label: 'TR', key: 'tree_num', type: 'number', visible: true, freeze: false},
   { label: 'V', key: 'visit_number', type: 'number', visible: true, freeze: false},
   { label: 'AZ', key: 'az', type: 'number', visible: true, freeze: true},
@@ -342,7 +378,7 @@ const columns = computed<Column[]>((): Column[] => [
 const rows = ref<Row[]>([]);
 
 // The row displayed to the user combines tree and measure values
-const treeAndMeasToRow = (tree: ITree, meas: ITreeMeasurement | undefined, visitNum: number, isPrior: boolean, isNew: boolean): Row => ({
+const treeAndMeasToRow = (tree: ITree, meas: ITreeMeasurement | undefined, visitNum: number, isPrior: boolean, isNew: boolean, hasError: boolean, sortGroup: number): Row => ({
   visit_guid: meas?.visit_guid,
   plot_guid: tree.plot_guid,
   tree_guid: tree.guid,
@@ -380,7 +416,9 @@ const treeAndMeasToRow = (tree: ITree, meas: ITreeMeasurement | undefined, visit
   sd: tree.sd ?? '',
   remarks: meas?.remarks ?? '',
   isPrior,
-  isNew
+  isNew,
+  hasError,
+  sortGroup
 });
 
 const captureSnapshot = () => {
@@ -403,8 +441,22 @@ const commitEditCheck = async () => {
   const currentVal = row[colKey];
   const oldVal = lastCellValue.value;
 
+  // Fraction evaluation and saving for fc and cr columns when navigating out
+  if ((colKey === 'fc' || colKey === 'cr') && String(currentVal) !== String(oldVal)) {
+    if (typeof currentVal === 'string' && currentVal.includes('/')) {
+      let fractionVal = evaluateFraction(currentVal);
+      if (fractionVal !== null) {
+        if (colKey === 'cr'){
+          fractionVal = 100 - fractionVal
+        }
+        row[colKey] = fractionVal;
+      }
+    }
+    await saveRow(row, true);
+  }
+
   // Define which attributes are considered "static" tree attributes
-  const staticFields = ['tree_num', 'az', 'hd', 'sp'];
+  const staticFields = ['tree_num', 'az', 'hd', 'sp','ref','sd'];
   
   if (!row.isNew && staticFields.includes(colKey) && String(currentVal) !== String(oldVal)) {
     const reason = prompt(`Reason for changing static attribute "${col.label}" from "${oldVal}" to "${currentVal}"?`);
@@ -436,7 +488,21 @@ const loadRows = async () => {
   if (!store.selectedPlot.value || !store.selectedVisit.value) return;
 
   const plotGUID = store.selectedPlot.value.guid;
+  
+  // Refresh selected visit from database to ensure status is up to date
+  const freshVisit = await db.plotVisits.get(store.selectedVisit.value.guid);
+  if (freshVisit) {
+    store.selectedVisit.value = freshVisit;
+  }
+  
   const currentVisit = store.selectedVisit.value;
+
+  visitIsActive.value = currentVisit.status === 'Active';
+
+  if (currentVisit.measurement_date === null){
+    currentVisit.measurement_date = new Date().getTime();
+  }
+  // console.log(currentVisit.measurement_date)
 
   // Find prior visit as most recent prior to current visit
   const priorVisit = await db.plotVisits
@@ -447,24 +513,79 @@ const loadRows = async () => {
     .sortBy('measurement_date')
     .then(list => list[0]);
 
-  const [trees, currentMeas, priorMeas] = await Promise.all([
+  const [trees, currentMeas, priorMeas, syncErrors] = await Promise.all([
     db.plotTrees.where('plot_guid').equals(plotGUID).sortBy('az'),
     db.treeMeasurements.where('visit_guid').equals(currentVisit.guid).toArray(),
-    priorVisit ? db.treeMeasurements.where('visit_guid').equals(priorVisit.guid).toArray() : Promise.resolve([])
+    priorVisit ? db.treeMeasurements.where('visit_guid').equals(priorVisit.guid).toArray() : Promise.resolve([]),
+    db.syncErrors.toArray()
   ]);
+
+  const erroredGuids = new Set(syncErrors.map(e => e.record_guid.toUpperCase()));
 
   // Rows to display include prior measurements interleaved with current measurements or empty rows
   const allRows: Row[] = [];
+  // // Capture seedlings and saplings and append them to the end
+  // const tailRows: Row[] = [];
+  // trees.forEach(tree => {
+  //   const pm = priorVisit ? priorMeas.find(m => m.tree_guid === tree.guid) : undefined;
+  //   let isTailRow = false;
+  //   if (priorVisit && pm) {
+  //     const pmHasError = erroredGuids.has(tree.guid.toUpperCase()) || (pm ? erroredGuids.has(pm.guid.toUpperCase()) : false);
+  //     const row = treeAndMeasToRow(tree, pm, priorVisit.visit_number, true, false, pmHasError);
+  //     if (row.az === null || row.dbh<5.5){
+  //       isTailRow = true;
+  //       tailRows.push(row);
+  //     } else {
+  //       isTailRow = false;
+  //       allRows.push(row);
+  //     }
+  //   }
+  //   const cm = currentMeas.find(m => m.tree_guid === tree.guid);
+  //   const cmHasError = erroredGuids.has(tree.guid.toUpperCase()) || (cm ? erroredGuids.has(cm.guid.toUpperCase()) : false);
+  //   const row = treeAndMeasToRow(tree, cm, currentVisit.visit_number, false, !pm, cmHasError);
+  //   if (isTailRow){
+  //     tailRows.push(row);
+  //   } else {
+  //     allRows.push(row);
+  //   }
+  // });
+
+  // // Sort by tree number and visit number
+  // tailRows.sort((a,b) => a.tree_num-b.tree_num || a.visit_number - b.visit_number);
+
+  // rows.value = [...allRows, ...tailRows];
+
   trees.forEach(tree => {
     const pm = priorVisit ? priorMeas.find(m => m.tree_guid === tree.guid) : undefined;
+    let sortGroup = 1;
     if (priorVisit && pm) {
-      allRows.push(treeAndMeasToRow(tree, pm, priorVisit.visit_number, true, false));
+      const pmHasError = erroredGuids.has(tree.guid.toUpperCase()) || (pm ? erroredGuids.has(pm.guid.toUpperCase()) : false);
+      if (tree.az == null || pm.dbh<5.5){
+        sortGroup = 2;
+      } else {
+        sortGroup = 1;
+      }
+      const row = treeAndMeasToRow(tree, pm, priorVisit.visit_number, true, false, pmHasError, sortGroup);
+      allRows.push(row);
     }
     const cm = currentMeas.find(m => m.tree_guid === tree.guid);
-    allRows.push(treeAndMeasToRow(tree, cm, currentVisit.visit_number, false, !pm));
+    const cmHasError = erroredGuids.has(tree.guid.toUpperCase()) || (cm ? erroredGuids.has(cm.guid.toUpperCase()) : false);
+    if (!pm) {
+      if (tree.az == null || (cm?.dbh ?? 0)<5.5){
+        sortGroup = 2;
+      } else {
+        sortGroup = 1;
+      }
+    }
+    const row = treeAndMeasToRow(tree, cm, currentVisit.visit_number, false, !pm, cmHasError, sortGroup);
+    allRows.push(row);
   });
 
+  // Sort by tree number and visit number
+  allRows.sort((a,b) => a.sortGroup-b.sortGroup || a.az-b.az || a.tree_num-b.tree_num || a.visit_number - b.visit_number );
+
   rows.value = allRows;
+  
   
   // Set initial active row to first editable row
   activeRow.value = allRows.findIndex(r => !r.isPrior);
@@ -484,8 +605,20 @@ const toNumOrUndef = (val: any) => {
   return Number.isNaN(n) ? undefined : n;
 };
 
+const evaluateFraction = (valStr: string): number | null => {
+  const parts = valStr.split('/');
+  if (parts.length === 2) {
+    const num = Number(parts[0].trim());
+    const den = Number(parts[1].trim());
+    if (!isNaN(num) && !isNaN(den) && den !== 0) {
+      return Math.round((num / den) * 100);
+    }
+  }
+  return null;
+};
+
 // Save a row to database
-const saveRow = async (row: Row) => {
+const saveRow = async (row: Row, forceSave = false) => {
   if (row.isPrior) return;
 
   const tree: ITree = {
@@ -535,18 +668,11 @@ const saveRow = async (row: Row) => {
     db.plotTrees.put(tree),
     db.treeMeasurements.put(measurement)
   ]);
-};
-
-// Delete a row from database
-// TODO: Ensure deleting trees is not allowed for incomplete visits
-const deleteRow = async (row: Row) => {
-  if (row.tree_guid) {
-    await Promise.all([
-      db.plotTrees.delete(row.tree_guid),
-      db.treeMeasurements.where('tree_globalid').equals(row.tree_guid).delete()
-    ]);
+  if (!store.hasUnsyncedEdits.value) {
+    store.checkUnsyncedEdits();
   }
 };
+
 
 const activeColConfig = computed(() => columns.value[activeCol.value]);
 
@@ -635,7 +761,8 @@ const move = async (dir: 'up' | 'down' | 'left' | 'right') => {
   scrollActiveIntoView();
 };
 
-const pressKey = (key: number | 'back' | '.') => {
+const pressKey = (key: number | 'back' | '.' | '/') => {
+  if (!checkVisitActive()) return;
   const row = rows.value[activeRow.value];
   const colKey = activeColConfig.value.key;
   const current = String(row[colKey] ?? '');
@@ -643,6 +770,10 @@ const pressKey = (key: number | 'back' | '.') => {
   // lastCellValue.value = current;
   console.log(lastCellValue.value);
 
+  if (key === '/') {
+    // Only allow '/' on 'fc' and 'cr' columns
+    if (colKey !== 'fc' && colKey !== 'cr') return;
+  }
 
   if (key === 'back') {
     if (activeColConfig.value.type === 'number') {
@@ -661,6 +792,7 @@ const pressKey = (key: number | 'back' | '.') => {
       cellNeedsOverwrite.value = false;
     } else {
       if (key === '.' && current.includes('.')) return;
+      if (key === '/' && current.includes('/')) return;
       row[colKey] = current + String(key);
     }
   }
@@ -670,6 +802,7 @@ const pressKey = (key: number | 'back' | '.') => {
 };
 
 const undoEdit = () => {
+  if (!checkVisitActive()) return;
   if (rows.value.length === 0) return;
   const row = rows.value[activeRow.value];
   const colKey = activeColConfig.value.key;
@@ -681,6 +814,7 @@ const undoEdit = () => {
 };
 
 const setVal = (val: string) => {
+  if (!checkVisitActive()) return;
   rows.value[activeRow.value][activeColConfig.value.key] = val;
   // Save the updated row to database
   saveRow(rows.value[activeRow.value]);
@@ -688,6 +822,7 @@ const setVal = (val: string) => {
 };
 
 const addRow = async () => {
+  if (!checkVisitActive()) return;
   if (!store.selectedPlot.value) return;
   
   const nextTreeNum = rows.value.length > 0 
@@ -708,7 +843,8 @@ const addRow = async () => {
     undefined, 
     store.selectedVisit.value?.visit_number || 1, 
     false,
-    true
+    true,
+    false
   );
 
   rows.value.push(newRow);
@@ -721,27 +857,108 @@ const addRow = async () => {
   saveRow(newRow);
 };
 
-// TODO: Use visit status not complete to ensure allowed deletion rather than row status
 const removeRow = async () => {
-  if (rows.value.length > 1) {
-    const rowToDelete = rows.value[activeRow.value];
+  if (rows.value.length === 0) return;
+  console.log(store.selectedVisit.value);
+  if (!checkVisitActive()) return;
 
-    if (!rowToDelete.isNew) {
-      alert("Only new tree records can be deleted. Records from prior visits cannot be removed.");
-      return;
+  const rowToDelete = rows.value[activeRow.value];
+  if (!rowToDelete) return;
+
+  if (rowToDelete.isPrior) {
+    alert("Records from prior visits cannot be removed.");
+    return;
+  }
+
+  const message = `Delete measurement for tree ${rowToDelete['tree_num']}? This cannot be undone.`;
+  if (!confirm(message)) return;
+
+  // Check if tree is associated with another visit
+  const measurements = await db.treeMeasurements.where('tree_guid').equals(rowToDelete.tree_guid).toArray();
+  const otherMeasurements = measurements.filter(m => m.visit_guid !== store.selectedVisit.value?.guid);
+
+  let deleteTree = false;
+  if (otherMeasurements.length === 0) {
+    deleteTree = confirm(`This tree record is not associated with any other visits. Do you want to delete the tree record as well?`);
+  }
+
+  // 1. Delete the measurement record for this visit
+  const measRecord = await db.treeMeasurements.where('tree_guid').equals(rowToDelete.tree_guid)
+    .filter(m => m.visit_guid === store.selectedVisit.value?.guid)
+    .first();
+
+  if (measRecord) {
+    // If the record has been synced (has OBJECTID or GlobalID), track it for server deletion
+    if (measRecord.OBJECTID || measRecord.GlobalID) {
+      await db.deletedRecords.put({
+        guid: measRecord.guid,
+        table_name: 'measurement',
+        objectid: measRecord.OBJECTID,
+        globalid: measRecord.GlobalID,
+        deleted_date: Date.now()
+      });
     }
+    await db.treeMeasurements.delete(measRecord.guid);
+  }
 
-    const rowIndex = activeRow.value + 1;
-    const message = `Delete tree ${rowToDelete['tree_num']}? This cannot be undone.`;
-    if (!confirm(message)) return;
-    rows.value.splice(activeRow.value, 1);
-
-    if (activeRow.value >= rows.value.length) {
-      activeRow.value = rows.value.length - 1;
+  // 2. Delete the tree record if requested
+  if (deleteTree) {
+    const treeRecord = await db.plotTrees.get(rowToDelete.tree_guid);
+    if (treeRecord) {
+      if (treeRecord.OBJECTID || treeRecord.GlobalID) {
+        await db.deletedRecords.put({
+          guid: treeRecord.guid,
+          table_name: 'tree',
+          objectid: treeRecord.OBJECTID,
+          globalid: treeRecord.GlobalID,
+          deleted_date: Date.now()
+        });
+      }
+      await db.plotTrees.delete(rowToDelete.tree_guid);
     }
+  }
 
-    // Delete the row from database
-    await deleteRow(rowToDelete);
+  // 3. Update local UI state
+  if (deleteTree) {
+    // Remove all rows associated with this tree (prior and current)
+    rows.value = rows.value.filter(r => r.tree_guid !== rowToDelete.tree_guid);
+  } else {
+    // Keep the tree but clear the current measurement values
+    const rowIndex = rows.value.findIndex(r => r.measurement_guid === rowToDelete.measurement_guid);
+    if (rowIndex !== -1) {
+      const tree = await db.plotTrees.get(rowToDelete.tree_guid);
+      if (tree) {
+        const pm = rows.value.find(r => r.tree_guid === rowToDelete.tree_guid && r.isPrior);
+        const treeErrors = await db.syncErrors.where('record_guid').equals(tree.guid).count();
+        const updatedRow = treeAndMeasToRow(tree, undefined, store.selectedVisit.value?.visit_number || 1, false, !pm, treeErrors > 0);
+        rows.value[rowIndex] = updatedRow;
+      }
+    }
+  }
+
+  // Adjust activeRow if it's out of bounds or pointing to a prior row
+  if (activeRow.value >= rows.value.length) {
+    activeRow.value = rows.value.length - 1;
+  }
+  while (activeRow.value >= 0 && rows.value[activeRow.value].isPrior) {
+    activeRow.value--;
+  }
+  if (activeRow.value < 0) {
+    activeRow.value = rows.value.findIndex(r => !r.isPrior);
+  }
+  if (activeRow.value === -1) {
+    activeRow.value = 0;
+  }
+
+  // If no records are left, insert a default row
+  if (rows.value.length === 0) {
+    await addRow();
+  }
+
+  captureSnapshot();
+  cellNeedsOverwrite.value = true;
+  if (!store.hasUnsyncedEdits.value) {
+    store.checkUnsyncedEdits();
   }
 };
 
@@ -818,6 +1035,7 @@ const handleGlobalKeydown = async (event: KeyboardEvent) => {
   if (event.key === ' ' || event.code === 'Space') {
     if (colConfig && colConfig.type === 'select') {
       event.preventDefault();
+      if (!checkVisitActive()) return;
 
       const selectEl = Array.isArray(activeSelectRef.value) 
         ? activeSelectRef.value[0] 
@@ -838,6 +1056,15 @@ const handleGlobalKeydown = async (event: KeyboardEvent) => {
 
   if (!colConfig) return;
   const colKey = colConfig.key;
+
+  // Prevent editing keys if visit is not active
+  const isEditingKey = event.key === 'Backspace' || event.key === 'Delete' || event.key === 'Escape' || (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey);
+  if (isEditingKey) {
+    if (!checkVisitActive()) {
+      event.preventDefault();
+      return;
+    }
+  }
 
   if (event.key === 'Backspace') {
     event.preventDefault();
@@ -872,7 +1099,9 @@ const handleGlobalKeydown = async (event: KeyboardEvent) => {
 
   if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
     if (colConfig.type === 'number') {
-      if (/[\d\.]/.test(event.key)) {
+      const isFcOrCr = colConfig.key === 'fc' || colConfig.key === 'cr';
+      const allowedRegex = isFcOrCr ? /[\d\.\/]/ : /[\d\.]/;
+      if (allowedRegex.test(event.key)) {
         event.preventDefault();
         const current = String(row[colKey] ?? '');
         if (cellNeedsOverwrite.value) {
@@ -880,6 +1109,7 @@ const handleGlobalKeydown = async (event: KeyboardEvent) => {
           cellNeedsOverwrite.value = false;
         } else {
           if (event.key === '.' && current.includes('.')) return;
+          if (event.key === '/' && current.includes('/')) return;
           row[colKey] = current + event.key;
         }
         await saveRow(row);
@@ -952,7 +1182,8 @@ onMounted(async () => {
   await loadRows();
 });
 
-onBeforeUnmount(() => {
+onBeforeUnmount(async () => {
+  await commitEditCheck();
   document.removeEventListener('fullscreenchange', updateFullscreenState);
   document.removeEventListener('click', closeMenu);
   document.removeEventListener('keydown', handleGlobalKeydown);
@@ -962,6 +1193,7 @@ onBeforeUnmount(() => {
 // Screen Lock
 const isLocked = ref(false)
 let wakeLock: WakeLockSentinel | null = null
+let wakeLockTimeoutId: any = null
 
 // Swipe variables
 const startX = ref(0)
@@ -973,9 +1205,20 @@ const threshold = 150 // Minimum swipe distance in px
 const requestWakeLock = async () => {
   if ('wakeLock' in navigator) {
     try {
+      if (wakeLockTimeoutId) {
+        clearTimeout(wakeLockTimeoutId)
+        wakeLockTimeoutId = null
+      }
+      
       wakeLock = await navigator.wakeLock.request('screen')
       swipeX.value = 0
       isLocked.value = true
+      
+      const durationMin = store.maxWakeLockTime.value
+      wakeLockTimeoutId = setTimeout(async () => {
+        await unlockScreen()
+        console.log(`Wake lock automatically released after ${durationMin} minutes.`)
+      }, durationMin * 60 * 1000)
     } catch (err) {
       console.error('Wake lock failed:', err)
     }
@@ -984,6 +1227,10 @@ const requestWakeLock = async () => {
 
 // Release Wake Lock
 const releaseWakeLock = async () => {
+  if (wakeLockTimeoutId) {
+    clearTimeout(wakeLockTimeoutId)
+    wakeLockTimeoutId = null
+  }
   if (wakeLock) {
     await wakeLock.release()
     wakeLock = null
@@ -1089,6 +1336,16 @@ td {
   color: var(--text-primary);
 }
 
+.error-row td {
+  background-color: rgba(239, 68, 68, 0.1) !important;
+  color: #b91c1c !important;
+}
+
+.dark-mode .error-row td {
+  background-color: rgba(239, 68, 68, 0.15) !important;
+  color: #fca5a5 !important;
+}
+
 .freeze-col {
     position: sticky;
     z-index: 1; /* Keeps the column on top of regular scrolling data */
@@ -1138,7 +1395,8 @@ th.freeze-col {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.75rem;
+  /* font-size: 1.75rem; */
+  box-shadow: 0 2px 0 var(--border-color);
 }
 
 .chip {

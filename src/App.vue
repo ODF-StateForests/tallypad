@@ -11,27 +11,12 @@
         <div>
           <h1 class="text-md font-bold">Project Plots ({{ filteredPlots.length }})</h1>
           <div class="flex gap-2">
-            <div class="flex">
-              <input
-                v-model="statusQuery"
-                type="text"
-                placeholder="Visit Status..."
-                class="text-sm bg-transparent border-b border-[var(--border-color)] focus:border-[var(--accent)] outline-none w-full max-w-[200px] mt-1"
-              />
-              <button 
-                v-if="statusQuery" 
-                @click="statusQuery = ''" 
-                class="ml-1 px-1 text-sm opacity-50 hover:opacity-100 transition-opacity"
-              >
-                ✕
-              </button>
-            </div>
-            <div class="flex gap-2">
+            <div class="flex gap-2 max-w-24 border-b border-[var(--border-color)] focus:border-[var(--accent)]">
               <input
                 v-model="plotIdQuery"
                 type="text"
-                placeholder="Filter plot ID..."
-                class="text-sm bg-transparent border-b border-[var(--border-color)] focus:border-[var(--accent)] outline-none w-full max-w-[200px] mt-1"
+                placeholder="Plot ID"
+                class="text-sm bg-transparent outline-none w-full mt-1"
               />
               <button 
                 v-if="plotIdQuery" 
@@ -41,18 +26,41 @@
                 ✕
               </button>
             </div>
+            <div class="flex gap-2 max-w-24 border-b border-[var(--border-color)] focus:border-[var(--accent)]">
+              <input
+                v-model="statusQuery"
+                type="text"
+                placeholder="Visit Status"
+                class="text-sm bg-transparent outline-none w-full mt-1"
+              />
+              <button 
+                v-if="statusQuery" 
+                @click="statusQuery = ''" 
+                class="ml-1 px-1 text-sm opacity-50 hover:opacity-100 transition-opacity"
+              >
+                ✕
+              </button>
+            </div>
           </div>
         </div>
         <div class="relative ml-4 gap-2 flex items-center">
           <button v-show="store.hasSyncErrors.value" class="menu-item text-xl" @click="store.goToSyncErrors()">
-            <span class="menu-icon">⚠️</span>
+            <span class="menu-icon"><icon-fa-exclamation-triangle /></span>
           </button>
-          <button @click="store.toggleDarkMode()" class="menu-item text-xl">
-            <icon-fa-sun-o v-if="store.isDarkMode.value" class="menu-icon" />
-            <icon-fa-moon-o v-else class="menu-icon" />
+          <button 
+            @click="headerSync" 
+            class="menu-item text-xl flex items-center justify-center"
+            :title="syncStatusTooltip"
+            :disabled="isSyncingHeader"
+          >
+            <span class="menu-icon flex items-center">
+              <icon-material-symbols-sync v-if="isSyncingHeader" class="animate-spin text-blue-500" />
+              <icon-material-symbols-cloud-upload v-else-if="store.hasUnsyncedEdits.value" class="text-orange-500" />
+              <icon-material-symbols-cloud-done v-else class="text-green-500 opacity-60" />
+            </span>
           </button>
           <button @click.stop="toggleMenu" class="p-2 rounded menu-item text-xl font-bold" :style="{ color: 'var(--text-primary)' }">
-            ⁝
+            <icon-fa7-solid-ellipsis-v />
           </button>
           <div v-if="isMenuOpen" class="kebab-menu" @click.stop>
             <button @click="store.toggleDarkMode()" class="menu-item">
@@ -61,23 +69,28 @@
               <span>{{ store.isDarkMode.value ? 'Light mode' : 'Dark mode' }}</span>
             </button>
 
-            <button class="menu-item" @click="store.goToSetup()">
-              <span class="menu-icon">⚙️</span>
-              <span>Setup / Sync</span>
+            <button class="menu-item" @click="store.goToSettings()">
+              <span class="menu-icon"><icon-fa-cog /></span>
+              <span>Settings</span>
+            </button>
+
+            <button class="menu-item" @click="store.goToSync()">
+              <span class="menu-icon"><icon-material-symbols-cloud-sync/></span>
+              <span>Database</span>
             </button>
 
             <button class="menu-item" @click="store.goToLookups()">
-              <span class="menu-icon">🗂️</span>
-              <span>Edit Lookups</span>
+              <span class="menu-icon"><icon-fa-wrench /></span>
+              <span>Lookups</span>
             </button>
 
             <button class="menu-item" @click="store.goToSyncErrors()">
-              <span class="menu-icon">⚠️</span>
+              <span class="menu-icon"><icon-fa-exclamation-triangle /></span>
               <span>Sync Errors</span>
             </button>
 
             <button class="menu-item">
-              <span class="menu-icon">ℹ️</span>
+              <span class="menu-icon"><icon-fa-info-circle /></span>
               <span>About</span>
             </button>
             <span class="menu-item">DB Version: {{ dbVersion }}</span>
@@ -99,50 +112,53 @@
         </div>
 
         <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-        <div
-          v-for="plot in filteredPlots"
-          :key="`${plot.plotid}`"
-          class="plot-card"
-          :style="{ backgroundColor: 'var(--cell-bg)', borderColor: 'var(--border-color)' }"
-          @click.stop="store.goToPlotDetail(plot)"
-          >
-          <div class="w-full">
-            <div class="flex justify-between items-start">
-              <div>
-                <div class="text-sm opacity-70 uppercase tracking-wide">Plot</div>
-                <div class="flex items-center gap-2">
-                  <h2 class="text-xl font-bold mb-3">{{ plot.plotid }}</h2>
+          <div
+            v-for="plot in filteredPlots"
+            :key="`${plot.plotid}`"
+            class="plot-card"
+            :style="{ backgroundColor: 'var(--cell-bg)', borderColor: 'var(--border-color)' }"
+            @click.stop="store.goToPlotDetail(plot)"
+            >
+            <div class="w-full">
+              <div class="flex justify-between">
+                <div class="flex flex-col">
+                  <div class="text-xs font-bold opacity-60 tracking-wide">Plot</div>
+                  <span class="text-md font-bold">{{ plot.plotid }}</span>
                 </div>
-                <div class="text-sm opacity-70 tracking-wide">Coordinates</div>
-                <h2 class="text-sm">{{ plot.coords }}</h2>
-              </div>
-              <div class="text-right">
-                <div class="text-sm opacity-70 uppercase tracking-wide">Trees</div>
-                <h2 class="text-xl font-bold mb-3">{{ plot.latestTreeCount }}</h2>
-                <div class="flex items-center gap-2">
-                  <button class="p-1 text-sm hover:opacity-100 cursor-pointer" @click.stop="waypointToPlot(plot)">⚑</button>
-                  <button class="p-1 text-sm hover:opacity-100 cursor-pointer" @click.stop="navigateToPlot(plot)">🚗</button>
+                <div class="flex flex-col">
+                  <div class="text-xs font-bold opacity-60 tracking-wide">Coordinates</div>
+                  <span class="text-md font-bold">{{ plot.coords }}</span>
+                </div>
+                <div class="flex flex-col items-center">
+                  <div class="text-xs font-bold opacity-60 tracking-wide">Trees</div>
+                  <span class="text-md font-bold">{{ plot.latestTreeCount }}</span>
                 </div>
               </div>
             </div>
-            <div class="flex gap-2 overflow-x-auto pb-1 no-scrollbar mt-4">
-              <button 
-                v-for="visit in plot.visits"
-                :key="visit.guid"
-                @click.stop="selectVisit(plot, visit)"
-                class="visit-chip">
-                V{{ visit.visit_number }}
-                {{ new Date(visit.measurement_date|| 0).toLocaleDateString()}}
-              </button>
-              <button 
-                v-show="store.allowAddVisits.value" 
-                @click.stop="addNewVisit(plot)"
-                class="visit-chip !bg-green-600/10 !text-green-600 !border-green-600/30 border-dashed">
-                ＋ Visit
-              </button>
+            <!-- <span>Visits</span> -->
+            <div class="flex w-full justify-between gap-2">
+              <div class="flex gap-2 overflow-x-auto p-1 no-scrollbar">
+                <button 
+                  v-for="visit in plot.visits"
+                  :key="visit.guid"
+                  @click.stop="selectVisit(plot, visit)"
+                  class="visit-chip">
+                  V{{ visit.visit_number }}
+                  {{ visit.status !== 'Planned' ? new Date(visit.measurement_date).toLocaleDateString() : 'Planned'}}
+                </button>
+                <button 
+                  v-show="store.allowAddVisits.value" 
+                  @click.stop="addNewVisit(plot)"
+                  class="visit-chip !bg-green-600/10 !text-green-600 !border-green-600/30 border-dashed">
+                  ＋ Visit
+                </button>
+              </div>
+              <div class="flex flex-col items-center">
+                <button class="p-1 text-lg cursor-pointer" @click.stop="waypointToPlot(plot)" title="Google Maps Location"><icon-fa-map-marker /></button>
+                <!-- <button class="p-1 text-sm hover:opacity-100 cursor-pointer" @click.stop="navigateToPlot(plot)" title="Google Maps Navigation"><icon-fa-car /></button> -->
+              </div>
             </div>
           </div>
-        </div>
         </div>
 
         <div v-show="store.allowAddPlots.value" class="flex justify-center pt-4">
@@ -163,9 +179,14 @@
       <Trees />
     </template>
 
-    <template v-else-if="store.currentView.value === 'setup'">
-      <!-- Setup View -->
-      <Setup />
+    <template v-else-if="store.currentView.value === 'settings'">
+      <!-- Settings View -->
+      <Settings />
+    </template>
+
+    <template v-else-if="store.currentView.value === 'sync'">
+      <!-- Sync View -->
+      <Sync />
     </template>
 
     <template v-else-if="store.currentView.value === 'lookups'">
@@ -181,17 +202,56 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted , onBeforeUnmount, computed } from 'vue';
+import { ref, onMounted, onUnmounted , onBeforeUnmount, computed, watch } from 'vue';
 import { useAppStore } from './stores/appStore';
 import { db, IPlot, IPlotVisit, ITree, ITreeMeasurement, renewDatabase } from './db';
+import { syncAll } from './sync_agol';
 import Trees from './views/Trees.vue';
-import Setup from './views/Setup.vue';
+import Settings from './views/Settings.vue';
+import Sync from './views/Sync.vue';
 import PlotDetails from './views/PlotDetails.vue';
 import Lookups from './views/Lookups.vue';
 import SyncErrors from './views/SyncErrors.vue';
+import { isConciseBody, isConditionalExpression } from 'typescript';
 
 const store = useAppStore();
 const dbVersion = ref(0);
+
+const isSyncingHeader = ref(false);
+
+const syncStatusTooltip = computed(() => {
+  if (isSyncingHeader.value) return 'Syncing with ESRI ArcGIS Online...';
+  if (store.hasUnsyncedEdits.value) return 'Local edits pending sync. Click to sync now.';
+  return 'All local edits synced with server.';
+});
+
+const headerSync = async () => {
+  if (isSyncingHeader.value) return;
+
+  if (!store.esriToken.value) {
+    alert("No ESRI login session active. Please log in from the Sync & Login view first.");
+    store.goToSync();
+    return;
+  }
+
+  isSyncingHeader.value = true;
+  try {
+    const result = await syncAll(store);
+    if (result.success) {
+      localStorage.setItem('tallypad_last_sync_time', String(Date.now()));
+      await store.checkUnsyncedEdits();
+      // alert("Sync completed successfully!");
+    } else {
+      const errorMsg = result.errors ? Object.values(result.errors).join(', ') : 'Unknown error';
+      alert(`Sync failed: ${errorMsg}`);
+    }
+  } catch (err) {
+    console.error('Header sync failed:', err);
+    alert('Sync failed. Please check your internet connection.');
+  } finally {
+    isSyncingHeader.value = false;
+  }
+};
 const isMenuOpen = ref(false);
 
 
@@ -203,6 +263,16 @@ interface IPlotWithVisits extends IPlot {
 const plots = ref<IPlotWithVisits[]>([]);
 const statusQuery = ref('');
 const plotIdQuery = ref('');
+
+watch(
+  () => store.currentView.value,
+  (newView) => {
+    if (newView === 'plots') {
+      loadPlots();
+    }
+    store.checkUnsyncedEdits();
+  }
+);
 
 const filteredPlots = computed(() => {
   let result = plots.value;
@@ -232,12 +302,14 @@ const closeMenu = () => {
 
 const selectVisit = async (plot: IPlot, visit: IPlotVisit) => {
   closeMenu();
+  const latestVisit = await db.plotVisits.get(visit.guid);
+  if (!latestVisit) return;
   const [trees, measurements] = await Promise.all([
     db.plotTrees.where('plot_guid').equals(plot.guid).toArray(),
-    db.treeMeasurements.where('visit_guid').equals(visit.guid).toArray(),
+    db.treeMeasurements.where('visit_guid').equals(latestVisit.guid).toArray(),
   ]);
-  console.log('N Trees:', trees.length, 'Plot GUID:', plot.guid, 'Visit GUID:', visit.guid);
-  store.goToTrees(plot, visit, trees, measurements);
+  // console.log('N Trees:', trees.length, 'Plot GUID:', plot.guid, 'Visit GUID:', latestVisit.guid);
+  store.goToTrees(plot, latestVisit, trees, measurements);
 };
 
 const addNewVisit = async (plot: IPlotWithVisits) => {
@@ -274,6 +346,9 @@ const addNewPlot = () => {
 
   db.plots.add(newPlot).then(() => {
     loadPlots();
+    if (!store.hasUnsyncedEdits.value) {
+      store.checkUnsyncedEdits();
+    }
   });
 };
 
@@ -284,7 +359,7 @@ const loadPlots = async () => {
       const visits = await db.plotVisits
         .where('plot_guid')
         .equals(plot.guid)
-        .sortBy('measurement_date');
+        .sortBy('visit_number');
 
       let latestTreeCount = 0;
       if (visits.length > 0) {
@@ -360,7 +435,7 @@ onMounted(() => {
         const expiration = Date.now() + (data.expires_in * 1000);
         console.log('Token Expiration: ', expiration)
         store.setEsriAuth(data.access_token, data.username, expiration, data.refresh_token);
-        store.goToSetup();
+        store.goToSync();
         window.history.replaceState({}, document.title, window.location.origin + window.location.pathname);
         localStorage.removeItem('esri_code_verifier');
       } else {
@@ -505,7 +580,7 @@ const waypointToPlot = async (plot: IPlotWithVisits) => {
   color: var(--text-primary);
   border: 1px solid var(--border-color);
   border-radius: 8px;
-  padding: 8px 16px;
+  padding: 6px 10px;
   font-weight: bold;
   white-space: nowrap;
   cursor: pointer;

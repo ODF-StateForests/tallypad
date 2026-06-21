@@ -3,8 +3,8 @@ import { ITree, IPlot, IPlotVisit, ITreeMeasurement, ISyncError, db } from '../d
 
 export interface AppState {
   isMobile: boolean;
-  currentView: 'plots' | 'trees' | 'setup' | 'plot_detail' | 'lookups' | 'sync_errors';
-  previousViews: ('plots' | 'trees' | 'setup' | 'plot_detail' | 'lookups' | 'sync_errors')[];
+  currentView: 'plots' | 'trees' | 'settings' | 'sync' | 'plot_detail' | 'lookups' | 'sync_errors';
+  previousViews: ('plots' | 'trees' | 'settings' | 'sync' | 'plot_detail' | 'lookups' | 'sync_errors')[];
   selectedPlot: IPlot | null;
   selectedVisit: IPlotVisit | null;
   priorVisit: IPlotVisit | null;
@@ -13,12 +13,15 @@ export interface AppState {
   isDarkMode: boolean;
   allowAddPlots: boolean;
   allowAddVisits: boolean;
+  allowDropVisits: boolean;
   userName: string;
   esriToken: string | null;
   esriRefreshToken: string | null;
   tokenExpiration: number | null;
   plotServiceUrl: string;
   hasSyncErrors: boolean;
+  maxWakeLockTime: number;
+  hasUnsyncedEdits: boolean;
 }
 
 const STORAGE_KEY_USER = 'tallypad_user';
@@ -28,13 +31,22 @@ const STORAGE_KEY_EXPIRY = 'tallypad_expiry';
 const STORAGE_KEY_DARK_MODE = 'tallypad_dark_mode';
 const STORAGE_KEY_ADD_PLOTS = 'tallypad_add_plots';
 const STORAGE_KEY_ADD_VISITS = 'tallypad_add_visits';
+const STORAGE_KEY_DROP_VISITS = 'tallypad_drop_visits';
 const STORAGE_KEY_PLOT_SERVICE_URL = 'tallypad_plot_service_url';
+const STORAGE_KEY_MAX_WAKELOCK = 'tallypad_max_wakelock';
 
 const getStoredExpiry = (): number | null => {
   const item = localStorage.getItem(STORAGE_KEY_EXPIRY);
   if (!item || item === 'null' || item === 'undefined') return null;
   const num = Number(item);
   return isNaN(num) ? null : num;
+};
+
+const getStoredMaxWakeLock = (): number => {
+  const item = localStorage.getItem(STORAGE_KEY_MAX_WAKELOCK);
+  if (!item || item === 'null' || item === 'undefined') return 15;
+  const num = Number(item);
+  return isNaN(num) || num <= 0 ? 15 : num;
 };
 
 const state = ref<AppState>({
@@ -47,18 +59,22 @@ const state = ref<AppState>({
   trees: [],
   measurements: [],
   isDarkMode: localStorage.getItem(STORAGE_KEY_DARK_MODE) === 'true',
-  allowAddPlots: localStorage.getItem(STORAGE_KEY_ADD_PLOTS) !== 'false',
-  allowAddVisits: localStorage.getItem(STORAGE_KEY_ADD_VISITS) !== 'false',
+  allowAddPlots: localStorage.getItem(STORAGE_KEY_ADD_PLOTS) === 'true',
+  allowAddVisits: localStorage.getItem(STORAGE_KEY_ADD_VISITS) === 'true',
+  allowDropVisits: localStorage.getItem(STORAGE_KEY_DROP_VISITS) === 'true',
   userName: localStorage.getItem(STORAGE_KEY_USER) || '',
   esriToken: localStorage.getItem(STORAGE_KEY_TOKEN),
   esriRefreshToken: localStorage.getItem(STORAGE_KEY_REFRESH_TOKEN),
   tokenExpiration: getStoredExpiry(),
   plotServiceUrl: localStorage.getItem(STORAGE_KEY_PLOT_SERVICE_URL) || import.meta.env.VITE_PLOT_SERVICE_URL,
   hasSyncErrors: false,
+  maxWakeLockTime: getStoredMaxWakeLock(),
+  hasUnsyncedEdits: false,
 });
 
 export const useAppStore = () => {
   const goToTrees = (plot: IPlot, visit: IPlotVisit, trees: ITree[], measurements: ITreeMeasurement[]) => {
+    pushCurrentView();
     state.value.selectedPlot = plot;
     state.value.selectedVisit = visit;
     state.value.trees = trees;
@@ -88,9 +104,14 @@ export const useAppStore = () => {
     state.value.currentView = 'plots';
   };
   
-  const goToSetup = () => {
+  const goToSettings = () => {
     pushCurrentView();
-    state.value.currentView = 'setup';
+    state.value.currentView = 'settings';
+  };
+
+  const goToSync = () => {
+    pushCurrentView();
+    state.value.currentView = 'sync';
   };
 
   const goToLookups = () => {
@@ -124,6 +145,11 @@ export const useAppStore = () => {
     localStorage.setItem(STORAGE_KEY_ADD_VISITS, String(state.value.allowAddVisits));
   };
 
+  const toggleAllowDropVisits = () => {
+    state.value.allowDropVisits = !state.value.allowDropVisits;
+    localStorage.setItem(STORAGE_KEY_DROP_VISITS, String(state.value.allowDropVisits));
+  };
+
   const checkDeviceType = () => {
     if (typeof window === "undefined") {
       console.log('checkDeviceType: No window object')
@@ -145,8 +171,18 @@ export const useAppStore = () => {
   };
 
   const currentView = computed(() => state.value.currentView);
-  const selectedPlot = computed(() => state.value.selectedPlot);
-  const selectedVisit = computed(() => state.value.selectedVisit);
+  const selectedPlot = computed({
+    get: () => state.value.selectedPlot,
+    set: (val) => {
+      state.value.selectedPlot = val;
+    }
+  });
+  const selectedVisit = computed({
+    get: () => state.value.selectedVisit,
+    set: (val) => {
+      state.value.selectedVisit = val;
+    }
+  });
   const trees = computed(() => state.value.trees);
   const measurements = computed(() => state.value.measurements);
   const isMobile = computed(() => state.value.isMobile);
@@ -156,6 +192,7 @@ export const useAppStore = () => {
   const plotServiceUrl = computed(() => state.value.plotServiceUrl);
   const allowAddPlots = computed(() => state.value.allowAddPlots);
   const allowAddVisits = computed(() => state.value.allowAddVisits);
+  const allowDropVisits = computed(() => state.value.allowDropVisits);
   
   const isTokenExpired = computed(() => {
     if (!state.value.tokenExpiration) return false;
@@ -168,6 +205,17 @@ export const useAppStore = () => {
     set: (val) => { 
       state.value.userName = val;
       localStorage.setItem(STORAGE_KEY_USER, val);
+    }
+  });
+
+  const maxWakeLockTime = computed({
+    get: () => state.value.maxWakeLockTime,
+    set: (val) => {
+      const num = Number(val);
+      if (!isNaN(num) && num > 0) {
+        state.value.maxWakeLockTime = num;
+        localStorage.setItem(STORAGE_KEY_MAX_WAKELOCK, String(num));
+      }
     }
   });
 
@@ -244,13 +292,57 @@ export const useAppStore = () => {
     }
   };
 
-  // Run initial check
+  const hasUnsyncedEdits = computed(() => state.value.hasUnsyncedEdits);
+  const checkUnsyncedEdits = async () => {
+    try {
+      const lastSyncTime = Number(localStorage.getItem('tallypad_last_sync_time') || 0);
+
+      // Check deletedRecords table
+      const deletedCount = await db.deletedRecords.count();
+      if (deletedCount > 0) {
+        state.value.hasUnsyncedEdits = true;
+        console.log('Have pending deletes')
+        return;
+      }
+
+      // Check modified / new records in data tables
+      const hasModified = async (table: any) => {
+        const count = await table
+          .filter((record: any) => !record.OBJECTID || (record.last_edited_date && record.last_edited_date > lastSyncTime))
+          .count();
+        console.log(table.name, count)
+        return count > 0;
+      };
+
+      if (
+        await hasModified(db.plots) ||
+        await hasModified(db.plotVisits) ||
+        await hasModified(db.plotTrees) ||
+        await hasModified(db.treeMeasurements) ||
+        await hasModified(db.plotGpsPoints) ||
+        await hasModified(db.edits)
+      ) {
+        state.value.hasUnsyncedEdits = true;
+        console.log('Have pending edits')
+        return;
+      }
+
+      state.value.hasUnsyncedEdits = false;
+    } catch (err) {
+      console.error('Failed to check unsynced edits:', err);
+      state.value.hasUnsyncedEdits = false;
+    }
+  };
+
+  // Run initial checks
   checkSyncErrors();
+  checkUnsyncedEdits();
 
   return {
     goToTrees,
     goToPlots,
-    goToSetup,
+    goToSettings,
+    goToSync,
     goToPlotDetail,
     goToLookups,
     goToSyncErrors,
@@ -270,8 +362,10 @@ export const useAppStore = () => {
     plotServiceUrl,
     allowAddPlots,
     allowAddVisits,
+    allowDropVisits,
     toggleAllowAddPlots,
     toggleAllowAddVisits,
+    toggleAllowDropVisits,
     setEsriAuth,
     logoutEsri,
     refreshEsriToken,
@@ -279,5 +373,8 @@ export const useAppStore = () => {
     checkSyncErrors,
     pushCurrentView,
     goToPreviousView,
+    maxWakeLockTime,
+    hasUnsyncedEdits,
+    checkUnsyncedEdits,
   };
 };
