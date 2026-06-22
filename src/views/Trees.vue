@@ -630,7 +630,8 @@ const saveRow = async (row: Row, forceSave = false) => {
     sp: row.sp,
     ref: row.ref,
     sd: toNumOrUndef(row.sd),
-    remarks: row.remarks
+    // FIXME: Capture and display tree level remarks in addition to measurement
+    // remarks: row.remarks
   };
 
   const measurement: ITreeMeasurement = {
